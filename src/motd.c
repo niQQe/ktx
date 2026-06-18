@@ -31,7 +31,8 @@ void PMOTDThink(void)
 	if ((self->attack_finished < g_globalvars.time) // expired
 			|| (!k_matchLess && match_in_progress)  // non matchless and (match has began or countdown)
 			|| (k_matchLess && match_in_progress == 1) // matchless and countdown
-			|| (PROG_TO_EDICT(self->s.v.owner)->attack_finished > g_globalvars.time)) // player fire something, so he wanna play, not reading motd
+			|| (PROG_TO_EDICT(self->s.v.owner)->attack_finished > g_globalvars.time) // player fire something, so he wanna play, not reading motd
+			|| PROG_TO_EDICT(self->s.v.owner)->s.v.button0) // holding +attack: dismiss even with no weapon (pre-match waiting state)
 	{
 		if (self->attack_finished < g_globalvars.time)
 		{
@@ -49,6 +50,55 @@ void PMOTDThink(void)
 		self->s.v.nextthink = g_globalvars.time + 1; // do not interference with +wp_stats or +scores and shownick
 
 		return;
+	}
+
+	// --- QWLeague matchmade splash -------------------------------------
+	// On a matchmade server (k_match_id is set by the agent) this is the ONLY
+	// splash the player sees — it fully replaces the stock KTX MOTD below.
+	// It is cleared automatically on fire / match start by the removal check
+	// at the top of this function. QW centerprint is text-only, so the
+	// "graphics" are a framed window drawn with the gold border glyphs
+	// (\235 = left cap, \236 = bar, \237 = right cap).
+	{
+		gedict_t *owner = PROG_TO_EDICT(self->s.v.owner);
+		char *match_id = cvar_string("k_match_id");
+
+		if (!owner->isBot && match_id[0])
+		{
+			char *url = cvar_string("k_qwleague_url");
+			qbool authed = ezinfokey(owner, "qwleague_token")[0] != 0;
+
+			// Plain centered text — the QW client centers each centerprint line
+			// on screen, so no manual padding or framing glyphs.
+			strlcat(buf, va("%s\n\n", redtext("QW LEAGUE")), sizeof(buf));
+
+			if (!authed && url[0])
+			{
+				// Player hasn't linked their token on this server yet.
+				strlcat(buf, "Sign up and get your token at\n", sizeof(buf));
+				strlcat(buf, va("%s\n\n", redtext(url)), sizeof(buf));
+				strlcat(buf, "then in console:\n", sizeof(buf));
+				strlcat(buf,
+						va("%s\n", redtext("setinfo qwleague_token <your-token>")),
+						sizeof(buf));
+			}
+			else
+			{
+				// Authed + assigned — waiting for the match to fill.
+				int needed = (int) cvar("k_mm_players");
+				const char *opp = (needed > 2) ? "opponents" : "opponent";
+
+				strlcat(buf, va("Server #%s\n\n", redtext(match_id)), sizeof(buf));
+				strlcat(buf, va("Waiting for your %s...\n", opp), sizeof(buf));
+			}
+
+			strlcat(buf, va("\n%s", redtext("press FIRE to dismiss")),
+					sizeof(buf));
+
+			G_centerprint(owner, "%s", buf);
+			self->s.v.nextthink = g_globalvars.time + 0.7;
+			return;
+		}
 	}
 
 	for (i = 1; i <= MOTD_LINES; i++)
@@ -86,6 +136,10 @@ void PMOTDThink(void)
 			va("\n\nType \"%s\" for available commands\nType \"%s\" for server details",
 				redtext("commands"), redtext("about")),
 			sizeof(buf));
+
+	// (QWLeague matchmade splash is handled above and returns early. The code
+	// here is the stock KTX MOTD, kept only as a fallback for non-matchmade
+	// servers where k_match_id is unset.)
 
 	G_centerprint(PROG_TO_EDICT(self->s.v.owner), "%s", buf);
 
@@ -137,13 +191,29 @@ void MakeMOTD(void)
 {
 	gedict_t *motd;
 	int i = bound(0, cvar("k_motd_time"), 30);
+	qbool needs_qwleague = !self->isBot
+			&& cvar_string("k_qwleague_url")[0]
+			&& !ezinfokey(self, "qwleague_token")[0];
+	// On a matchmade server the QWLeague splash stays up until the player
+	// fires or the match starts, not just k_motd_time seconds.
+	qbool mm_splash = !self->isBot && cvar_string("k_match_id")[0];
 
 	motd = spawn();
 	motd->classname = "motd";
 	motd->s.v.owner = EDICT_TO_PROG(self);
 	motd->think = (func_t) MOTDThinkX;
 	motd->s.v.nextthink = g_globalvars.time + 0.1;
-	motd->attack_finished = g_globalvars.time + (i ? i : (k_matchLess ? 3 : 7));
+
+	if (needs_qwleague || mm_splash)
+	{
+		// Persistent splash: large timeout so player must dismiss it manually
+		// (by pressing fire). PMOTDThink already removes on +attack.
+		motd->attack_finished = g_globalvars.time + 3600;
+	}
+	else
+	{
+		motd->attack_finished = g_globalvars.time + (i ? i : (k_matchLess ? 3 : 7));
+	}
 }
 
 void RemoveMOTD(void)

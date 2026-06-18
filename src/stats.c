@@ -573,8 +573,22 @@ void StatsToFile(void)
 	format = FindStatsFormat(cvar_string("k_demotxt_format"));
 	json_format = FindStatsFormat("json");
 
-	// This file over-written every time
-	snprintf(name, sizeof(name), "demoinfo_%s_%d", ip, i);
+	// Sanitize the IP: MVDSV's `sv_web_postfile` rejects filenames containing
+	// more than one dot (treats them as unsafe). Replace dots in the IP with
+	// underscores so the filename has only the single ".json" extension dot.
+	{
+		char safe_ip[64];
+		int j;
+		strlcpy(safe_ip, ip, sizeof(safe_ip));
+		for (j = 0; safe_ip[j]; j++)
+		{
+			if (safe_ip[j] == '.')
+			{
+				safe_ip[j] = '_';
+			}
+		}
+		snprintf(name, sizeof(name), "demoinfo_%s_%d", safe_ip, i);
+	}
 
 	// Always write json, so it can be embedded in demo
 	if (json_format != NULL)

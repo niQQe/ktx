@@ -559,6 +559,15 @@ void GotoNextMap(void)
 	char newmap[64] =
 		{ 0 };
 
+	// Matchmade servers self-terminate after the match (mm_shutdown). Never
+	// cycle the map from the intermission here: the reload would wipe the
+	// shutdown timer and re-arm the matchmaking auto-start. Stay on the frozen
+	// intermission/scoreboard until the deferred quit fires.
+	if (is_matchmade_server() && cvar("k_shutdown_on_end"))
+	{
+		return;
+	}
+
 	if (trap_cvar("samelevel"))
 	{
 		// if samelevel is set, stay on same level
@@ -1327,7 +1336,204 @@ qbool CanConnect(void)
 		// can't connect
 		return false;
 	}
-	else if (!match_in_progress || k_matchLess || k_bloodfest)
+
+	// qwleague matchmaking gate: when this server has been allocated to a
+	// specific match, only the matched players' tokens may connect. Applies
+	// regardless of match state (warmup, in progress, intermission).
+	{
+		const char *allowed = cvar_string("k_allowed_tokens");
+		// Bots are added server-side (no network client, no qwleague token),
+		// so they're inherently trusted — exempt them from the per-match token
+		// gate. Without this, dev bot-fill clients get denied and vanish.
+		if (allowed[0] && !self->isBot)
+		{
+			const char *my_token = ezinfokey(self, "qwleague_token");
+			qbool ok = false;
+			if (my_token[0])
+			{
+				const char *p = allowed;
+				char tok[64];
+				size_t i;
+				while (*p)
+				{
+					while (*p == ' ' || *p == '\t' || *p == ',')
+					{
+						p++;
+					}
+					i = 0;
+					while (*p && *p != ' ' && *p != '\t' && *p != ','
+							&& i < sizeof(tok) - 1)
+					{
+						tok[i++] = *p++;
+					}
+					tok[i] = 0;
+					if (i > 0 && streq(tok, my_token))
+					{
+						ok = true;
+						break;
+					}
+				}
+			}
+			if (!ok)
+			{
+				G_sprint(self, 2,
+						"%s\n"
+						"This server is reserved for a specific matchmade game.\n"
+						"Visit %s to queue for a match.\n",
+						redtext("access denied"),
+						cvar_string("k_qwleague_url"));
+				return false;
+			}
+
+			// Team modes (2on2): the agent passes "k_token_teams" as
+			// "<token> <team> <token> <team> ...". Force the connecting
+			// player onto their assigned team so KTX's team logic groups
+			// them correctly. Empty in 1on1, so this is a no-op there.
+			{
+				const char *tt = cvar_string("k_token_teams");
+				if (tt[0])
+				{
+					const char *p = tt;
+					char tok[64], team[32];
+					size_t i;
+					while (*p)
+					{
+						while (*p == ' ' || *p == '\t' || *p == ',')
+						{
+							p++;
+						}
+						i = 0;
+						while (*p && *p != ' ' && *p != '\t' && *p != ','
+								&& i < sizeof(tok) - 1)
+						{
+							tok[i++] = *p++;
+						}
+						tok[i] = 0;
+						while (*p == ' ' || *p == '\t' || *p == ',')
+						{
+							p++;
+						}
+						i = 0;
+						while (*p && *p != ' ' && *p != '\t' && *p != ','
+								&& i < sizeof(team) - 1)
+						{
+							team[i++] = *p++;
+						}
+						team[i] = 0;
+						if (tok[0] && team[0] && streq(tok, my_token))
+						{
+							SetUserInfo(self, "team", team, 0);
+							break;
+						}
+					}
+				}
+
+				// Anti-fakenick: lock the in-game name to the player's
+				// registered QWLeague handle (k_token_names, keyed by token).
+				// At this point self->netname already holds the client-chosen
+				// name (set at GAME_CLIENT_CONNECT), so override all three:
+				// the authoritative userinfo (broadcast to everyone), the mod's
+				// cached netname (drives scoreboard/stats/messages), and the
+				// client's own "name" cvar. Later changes are rejected in
+				// ClientUserInfoChanged.
+				{
+					char fname[CLIENT_NAME_LEN];
+					if (mm_forced_name(self, fname, sizeof(fname)))
+					{
+						SetUserInfo(self, "name", fname, 0);
+						strlcpy(self->netname, fname, CLIENT_NAME_LEN);
+						stuffcmd_flags(self, STUFFCMD_IGNOREINDEMO,
+								"name \"%s\"\n", fname);
+					}
+				}
+			}
+
+			// Single-slot-per-token: if another connected player already
+			// holds this token, reject. Prevents stream-sniping where a
+			// leaked ephemeral token could be reused to displace the
+			// rightful player. Ghosts (disconnected) don't count, so a
+			// legit reconnect is still allowed within the forfeit window.
+			{
+				gedict_t *other;
+				for (other = world; (other = find_plr(other));)
+				{
+					if (other == self)
+					{
+						continue;
+					}
+					if (streq(ezinfokey(other, "qwleague_token"), my_token))
+					{
+						G_sprint(self, 2,
+								"%s\n"
+								"This match token is already in use by a connected "
+								"player. If this is your account, your token may "
+								"have leaked - return to the website and queue again.\n",
+								redtext("token in use"));
+						return false;
+					}
+				}
+			}
+
+			// IP binding: the first IP to use a token claims it. Subsequent
+			// connects with the same token from a different IP are rejected
+			// (stream-snipe defense). Resets each time the .so loads, i.e.
+			// once per spawned matchmade server.
+			{
+				// One slot per possible roster token. 4on4 has 8 tokens; a
+				// smaller table left the extra tokens unbound, so the IP-mismatch
+				// stream-snipe guard silently didn't cover half a 4on4 roster.
+				#define MM_TOKEN_SLOTS 8
+				static struct {
+					char token[64];
+					char ip[64];
+				} mm_token_ips[MM_TOKEN_SLOTS];
+
+				const char *connecting_ip = ezinfokey(self, "ip");
+				int slot, free_slot = -1;
+				qbool found = false;
+				qbool ip_ok = false;
+
+				for (slot = 0; slot < MM_TOKEN_SLOTS; slot++)
+				{
+					if (!mm_token_ips[slot].token[0])
+					{
+						if (free_slot < 0)
+						{
+							free_slot = slot;
+						}
+						continue;
+					}
+					if (streq(mm_token_ips[slot].token, my_token))
+					{
+						found = true;
+						ip_ok = streq(mm_token_ips[slot].ip, connecting_ip);
+						break;
+					}
+				}
+
+				if (found && !ip_ok)
+				{
+					G_sprint(self, 2,
+							"%s\n"
+							"This match token was first used from a different IP.\n"
+							"If you are the rightful owner and your network changed,\n"
+							"return to the website and queue again for a fresh token.\n",
+							redtext("ip mismatch"));
+					return false;
+				}
+
+				if (!found && free_slot >= 0 && connecting_ip[0])
+				{
+					strlcpy(mm_token_ips[free_slot].token, my_token,
+							sizeof(mm_token_ips[free_slot].token));
+					strlcpy(mm_token_ips[free_slot].ip, connecting_ip,
+							sizeof(mm_token_ips[free_slot].ip));
+				}
+			}
+		}
+	}
+
+	if (!match_in_progress || k_matchLess || k_bloodfest)
 	{
 		// no checks in matchLess mode, in bloodfest, or if there is no game in progress
 
@@ -2402,6 +2608,13 @@ void PutClientInServer(void)
 #ifdef BOT_SUPPORT
 	BotClientEntersEvent(self, spot);
 #endif
+
+	// qwleague matchmade servers: notify the backend that this player has
+	// connected (used to attribute no-show timeouts only to the actual
+	// no-shower) and, if the 2nd allowed player has now arrived, kick off
+	// the auto-start countdown.
+	mm_notify_connect();
+	mm_maybe_auto_start();
 }
 
 /*
@@ -3027,6 +3240,10 @@ void ClientDisconnect(void)
 
 		MakeGhost();
 	}
+
+	// qwleague matchmade servers: if a player drops during the auto-start
+	// countdown, abort it so the remaining player isn't dragged into a 1v0.
+	mm_handle_disconnect();
 
 	DropRune();
 	PlayerDropFlag(self, false);
@@ -5794,6 +6011,7 @@ qbool PlayerCanPause(gedict_t *p)
 {
 	qbool playerCanPause = false;
 	char *matchtag = ezinfokey(world, "matchtag");
+	char *team = getteam(p);
 
 	// Check for matchtag, OR allow if k_pause_without_matchtag is set.
 	if (cvar("k_pause_without_matchtag") || ((matchtag != NULL) && matchtag[0]))
@@ -5801,7 +6019,26 @@ qbool PlayerCanPause(gedict_t *p)
 		// Let's see if the player can still pause.
 		if (p->k_pauseRequests > 0)
 		{
-			p->k_pauseRequests--;
+			// In team modes the budget is POOLED per team — a team shares
+			// MAX_PAUSE_REQUESTS, not each player. Decrement every teammate in
+			// lockstep so each player's counter mirrors the team's remaining.
+			// 1on1/FFA fall through to the per-player decrement (one player per
+			// "team", so the behaviour is identical there).
+			if (cvar("teamplay") && !strnull(team))
+			{
+				gedict_t *t;
+				for (t = world; (t = find_plr_same_team(t, team));)
+				{
+					if (t->k_pauseRequests > 0)
+					{
+						t->k_pauseRequests--;
+					}
+				}
+			}
+			else
+			{
+				p->k_pauseRequests--;
+			}
 			playerCanPause = true;
 		}
 	}

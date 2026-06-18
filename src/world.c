@@ -1090,6 +1090,66 @@ void FirstFrame(void)
 	RegisterCvarEx("k_privategame_allow_specs", "1"); // set the server to allow unauthed spectators
 	RegisterCvarEx("k_privategame_force_reconnect", "1"); // when voting for private game, kick unauthed players
 
+	// qwleague matchmaking integration
+	// k_allowed_tokens: when non-empty, only players whose `qwleague` userinfo
+	// matches one of these space-separated tokens may connect to this server.
+	// Empty (default) means the server is open to anyone (casual play).
+	RegisterCvarEx("k_allowed_tokens", "");
+	// k_match_id: opaque qwleague session id, emitted with end-of-match stats
+	// so the backend can correlate the JSON to a specific matchmade session.
+	RegisterCvarEx("k_match_id", "");
+	// k_shutdown_on_end: when 1, the server `quit`s itself after MatchEndStats.
+	// Used by the qwleague-agent so per-match mvdsv processes terminate cleanly.
+	RegisterCvarEx("k_shutdown_on_end", "0");
+	// k_match_start_delay: countdown seconds once both players are on the
+	// matchmade server (overrides k_count for the matchmaking auto-start).
+	RegisterCvarEx("k_match_start_delay", "15");
+	// k_match_join_deadline: max seconds after server spawn for both players
+	// to arrive. If only one is here when this expires, the connected player
+	// is told the opponent no-showed, and the server shuts down. Should match
+	// qwleague's CONNECT_NO_SHOW_DEADLINE_SEC.
+	RegisterCvarEx("k_match_join_deadline", "90");
+	// k_match_forfeit_deadline: mid-match technical-timeout window. When a
+	// player disconnects during an active matchmade game, they have this many
+	// seconds to reconnect before the match is forfeited to the remaining
+	// player.
+	RegisterCvarEx("k_match_forfeit_deadline", "90");
+	// k_match_forfeit_loser: qwleague token of the player declared forfeit
+	// at the end of the match. Emitted in the stats JSON so the backend
+	// awards Elo to the remaining player regardless of frag counts.
+	RegisterCvarEx("k_match_forfeit_loser", "");
+	// k_match_aborted: set to "1" when the match ended without a clear
+	// winner — e.g., both players disconnected and didn't return. Emitted
+	// in the stats JSON so the backend records the session as aborted
+	// (no Elo change for anyone).
+	RegisterCvarEx("k_match_aborted", "0");
+	// Per-match overrides applied AFTER UserMode(-1) so they win against the
+	// duel-mode default timelimit/fraglimit. Set to 0 to keep the duel default.
+	RegisterCvarEx("k_match_timelimit", "10");
+	RegisterCvarEx("k_match_fraglimit", "0");
+	// k_qwleague_url: signup URL shown to players who haven't set their token.
+	RegisterCvarEx("k_qwleague_url", "");
+	// k_token_teams: "<token> <team> ..." mapping used to force each connecting
+	// matchmade player onto their assigned team (team modes only).
+	RegisterCvarEx("k_token_teams", "");
+	// k_mm_players: humans+bots needed to auto-start a matchmade game (2 for
+	// 1on1, 4 for 2on2). Defaults to 2.
+	RegisterCvarEx("k_mm_players", "2");
+	// k_mm_bots / k_mm_bot_skill: dev/testing only — fill empty slots with bots
+	// so a single human can exercise a team match. 0 = no bots (production).
+	RegisterCvarEx("k_mm_bots", "0");
+	RegisterCvarEx("k_mm_bot_skill", "14");
+	// k_mm_require_ruleset: when non-empty on a matchmade server, each connecting
+	// player is probed for their client ruleset (via f_ruleset) and must report
+	// THIS ruleset name (e.g. "smackdown") or they're kicked. BEST-EFFORT: the
+	// reply is client-cooperative and therefore spoofable — it stops honest
+	// players on the wrong ruleset, not a determined cheat. Empty = disabled.
+	RegisterCvarEx("k_mm_require_ruleset", "");
+	// k_mm_ruleset_strict: when 1, a player who never sends a parseable f_ruleset
+	// reply within the window is ALSO kicked. Default 0 (fail-open: unverifiable
+	// clients are allowed) so a quirk in client replies can't lock everyone out.
+	RegisterCvarEx("k_mm_ruleset_strict", "0");
+
 // below globals changed only here
 
 	k_matchLess = cvar("k_matchless");
@@ -1161,6 +1221,53 @@ void FirstFrame(void)
 	k_ctf = (k_mode == gtCTF); // finaly decide is ctf active or not
 	k_ctf_custom_models = k_ctf_custom_models && (isCTF() || isRACE()); // precache only if CTF is really on
 #endif
+
+	// qwleague matchmaking: if this is a matchmade server (k_allowed_tokens
+	// was set in the per-match config), invoke the server-side usermode for the
+	// match's MODE so the full ruleset is applied (teamplay/k_mode/k_membercount,
+	// sv_antilag, maxclients, etc.). Without this the server sits in whatever the
+	// default usermode was, and timing-sensitive things feel wrong.
+	//
+	// The mode is derived from k_mm_players (set by the agent): 2 -> 1on1,
+	// 4 -> 2on2, 8 -> 4on4. UserMode's argument is the team size (players / 2),
+	// which is exactly the per-mode command number (um_list: 1on1->1, 2on2->2,
+	// 4on4->4); negative selects the sv-invoked path. Previously this was a
+	// hardcoded UserMode(-1), which forced the 1on1 (duel) ruleset onto EVERY
+	// matchmade game, so 2on2/4on4 ran with teamplay 0 / k_mode 1.
+	if (cvar_string("k_allowed_tokens")[0])
+	{
+		float tl, fl;
+		gedict_t *jd;
+		int mm_players = (int) cvar("k_mm_players");
+		int um_arg = mm_players / 2;   // 2->1on1(1), 4->2on2(2), 8->4on4(4)
+		if (um_arg < 1)
+		{
+			um_arg = 1;                // safety: never below 1on1
+		}
+		cvar_fset("k_free_mode", 5);  // allow sv-invoked mode change to succeed
+		UserMode(-um_arg);             // negative = sv_invoked path
+		// Re-apply per-match overrides AFTER UserMode (which resets these to
+		// the usermode's defaults from _NonN_um_init).
+		tl = cvar("k_match_timelimit");
+		if (tl > 0)
+		{
+			cvar_fset("timelimit", tl);
+		}
+		fl = cvar("k_match_fraglimit");
+		if (fl > 0)
+		{
+			cvar_fset("fraglimit", fl);
+		}
+
+		// Spawn the join-deadline ticker. If both matched players are not
+		// present within k_match_join_deadline seconds, the connected
+		// player(s) get a chat message and the server shuts down.
+		jd = spawn();
+		jd->classname = "mm_join_deadline";
+		jd->think = (func_t) mm_join_deadline_think;
+		jd->s.v.nextthink = g_globalvars.time + 1;
+		jd->cnt2 = (int) bound(30, cvar("k_match_join_deadline"), 600);
+	}
 }
 
 // items spawned, but probably not solid yet
@@ -1909,6 +2016,8 @@ void StartFrame(int time)
 	Check_LongMapUptime(); // reload map after some long up time, so our float time variables are happy
 
 	check_fcheck();
+
+	mm_check_ruleset_deadlines();
 
 	TeamplayGameTick();
 

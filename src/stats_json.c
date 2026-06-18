@@ -343,7 +343,14 @@ void json_player_detail(fileHandle_t handle, int player_num, gedict_t *player, c
 	S2di(handle, INDENT6 "\"top-color\": %d," JSON_CR, iKey(player, "topcolor"));
 	S2di(handle, INDENT6 "\"bottom-color\": %d," JSON_CR, iKey(player, "bottomcolor"));
 	S2di(handle, INDENT6 "\"ping\": %d," JSON_CR, iKey(player, "ping"));
-	S2di(handle, INDENT6 "\"login\": \"%s\"," JSON_CR, ezinfokey(player, "login"));
+	{
+		const char *login_id = ezinfokey(player, "login");
+		if (!login_id[0])
+		{
+			login_id = ezinfokey(player, "qwleague_token");
+		}
+		S2di(handle, INDENT6 "\"login\": \"%s\"," JSON_CR, login_id);
+	}
 	S2di(handle, INDENT6 "\"name\": \"%s\"," JSON_CR, json_string(getname(player)));
 	S2di(handle, INDENT6 "\"team\": \"%s\"," JSON_CR, json_string(team));
 	S2di(handle,
@@ -469,6 +476,12 @@ void json_match_header(fileHandle_t handle, char *ip, int port)
 	S2di(handle, INDENT2 "\"map\": \"%s\"," JSON_CR, json_string(mapname));
 	S2di(handle, INDENT2 "\"hostname\": \"%s\"," JSON_CR,
 			json_string(striphigh(cvar_string("hostname"))));
+	S2di(handle, INDENT2 "\"match_id\": \"%s\"," JSON_CR,
+			json_string(cvar_string("k_match_id")));
+	S2di(handle, INDENT2 "\"forfeit_loser\": \"%s\"," JSON_CR,
+			json_string(cvar_string("k_match_forfeit_loser")));
+	S2di(handle, INDENT2 "\"aborted\": %d," JSON_CR,
+			(int) cvar("k_match_aborted"));
 	S2di(handle, INDENT2 "\"ip\": \"%s\"," JSON_CR, json_string(ip));
 	S2di(handle, INDENT2 "\"port\": %d," JSON_CR, port);
 	if (!strnull(matchtag))

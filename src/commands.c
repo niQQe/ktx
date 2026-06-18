@@ -222,6 +222,7 @@ void ToggleExclusive(void);
 void ToggleNewCoopNm(void);
 void ToggleVwep(void);
 void TogglePause(void);
+void MatchExtend(void);
 void ToggleArena(void);
 
 void Spawn666Time(void);
@@ -1000,6 +1001,7 @@ cmd_t cmds[] =
 	{ "exclusive", 					ToggleExclusive, 				0, 			CF_BOTH_ADMIN, 															CD_EXCLUSIVE },
 	{ "vwep", 						ToggleVwep, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_VWEP },
 	{ "pause", 						TogglePause, 					0, 			CF_PLAYER | CF_MATCHLESS | CF_SPC_ADMIN, 								CD_PAUSE },
+	{ "extend", 					MatchExtend, 					0, 			CF_PLAYER, 																"extend matchmade pause / technical timeout (+2:00)" },
 	// { RACE
 	{ "race_ready", 				DEF(r_changestatus), 			1, 			CF_PLAYER, 																CD_RREADY },
 	{ "race_break", 				DEF(r_changestatus), 			2, 			CF_PLAYER, 																CD_RBREAK },
@@ -1083,6 +1085,27 @@ int DoCommand(int icmd)
 	if (!k_matchLess && (cmds[icmd].cf_flags & CF_MATCHLESS_ONLY))
 	{
 		return DO_CMD_MATCHLESS_ONLY; // cmd allowed in matchLess mode _only_
+	}
+
+	// qwleague matchmade servers: the website controls captains, teams, map,
+	// mode and match start, so the manual match-organizing commands are
+	// meaningless here and could disrupt the controlled match. Block them.
+	if (is_matchmade_server() && cmds[icmd].name)
+	{
+		static const char *mm_blocked[] = {
+			"elect", "yes", "no", "captain", "coach",
+			"votemap", "votecoop", "vote", "agree", "pickplayer",
+		};
+		size_t bi;
+		for (bi = 0; bi < sizeof(mm_blocked) / sizeof(mm_blocked[0]); bi++)
+		{
+			if (streq(cmds[icmd].name, mm_blocked[bi]))
+			{
+				G_sprint(self, 2, "%s\n",
+						redtext("That command is disabled on matchmade servers."));
+				return DO_ACCESS_DENIED;
+			}
+		}
 	}
 
 	if (spc)
@@ -4681,7 +4704,7 @@ void UserMode(float umode)
 		return;
 	}
 
-	if (!k_matchLess) // allow for matchless mode
+	if (!k_matchLess && !sv_invoked) // allow for matchless mode and server-invoked
 	{
 		if (!is_rules_change_allowed())
 		{
@@ -8688,6 +8711,14 @@ int pauseduration;
 int pauses_remaining;
 char pause_name[50];
 
+// qwleague: matchmade manual pauses auto-resume after a fixed cap; /extend
+// adds another step (both 2 min). 0 = no active matchmade-pause cap.
+#define MM_PAUSE_STEP_MS 120000
+int mm_pause_cap_ms;
+// /extend uses consumed this match (reset in StartMatch). Capped at
+// MAX_MATCH_EXTENDS so a pause/timeout can't be stretched indefinitely.
+int mm_extends_used;
+
 void PausedTic(int duration)
 {
 	gedict_t *p;
@@ -8695,6 +8726,26 @@ void PausedTic(int duration)
 	static int prevtime = 0;
 
 	pauseduration = duration;
+
+	// qwleague matchmaking: run the technical-timeout countdown in real time
+	// here (think entities don't fire while paused).
+	mm_paused_tic(duration);
+
+	// Matchmade MANUAL pause (not the disconnect technical-timeout): cap it at
+	// MM_PAUSE_STEP_MS and auto-resume, unless /extend pushed the cap out.
+	if (is_matchmade_server() && match_in_progress == 2
+			&& !mm_forfeit_is_active() && !when_to_unpause)
+	{
+		if (mm_pause_cap_ms == 0)
+		{
+			mm_pause_cap_ms = MM_PAUSE_STEP_MS;
+		}
+		if (duration >= mm_pause_cap_ms)
+		{
+			G_bprint(2, "%s\n", redtext("Pause time up - resuming in 3 seconds."));
+			when_to_unpause = pauseduration + 3000;
+		}
+	}
 
 	if (when_to_unpause && when_to_unpause > duration)
 	{
@@ -8717,10 +8768,61 @@ void PausedTic(int duration)
 			|| (when_to_unpause && duration >= when_to_unpause))
 	{
 		when_to_unpause = pauseduration = 0; // reset our globals
+		mm_pause_cap_ms = 0;
 		G_cp2all(" ");	// clear centerprint
 		G_bprint(2, "game unpaused\n");
 		trap_setpause(0);
 	}
+}
+
+// qwleague /extend: on a matchmade server, add another 2-minute step to
+// whichever freeze is active — the disconnect technical-timeout (so a dropped
+// player gets more time to return) or a manual pause (push back auto-resume).
+void MatchExtend(void)
+{
+	if (!is_matchmade_server())
+	{
+		G_sprint(self, 2, "%s\n", redtext("/extend is only for matchmade servers."));
+		return;
+	}
+
+	if (mm_forfeit_is_active())
+	{
+		if (mm_extends_used >= MAX_MATCH_EXTENDS)
+		{
+			G_sprint(self, 2, "%s\n",
+					redtext(va("Extend limit reached (%d per match).",
+							MAX_MATCH_EXTENDS)));
+			return;
+		}
+		mm_extends_used++;
+		mm_extend_forfeit_deadline(MM_PAUSE_STEP_MS);
+		G_bprint(2, "%s %s\n", self->netname,
+				redtext(va("extended the technical timeout (+2:00, %d left).",
+						MAX_MATCH_EXTENDS - mm_extends_used)));
+		return;
+	}
+
+	if ((int)cvar("sv_paused") & 1)
+	{
+		if (mm_extends_used >= MAX_MATCH_EXTENDS)
+		{
+			G_sprint(self, 2, "%s\n",
+					redtext(va("Extend limit reached (%d per match).",
+							MAX_MATCH_EXTENDS)));
+			return;
+		}
+		mm_extends_used++;
+		mm_pause_cap_ms = (mm_pause_cap_ms ? mm_pause_cap_ms : MM_PAUSE_STEP_MS)
+				+ MM_PAUSE_STEP_MS;
+		when_to_unpause = 0; // cancel any pending auto-resume
+		G_bprint(2, "%s %s\n", self->netname,
+				redtext(va("extended the pause (+2:00, %d left).",
+						MAX_MATCH_EXTENDS - mm_extends_used)));
+		return;
+	}
+
+	G_sprint(self, 2, "%s\n", redtext("Nothing to extend right now."));
 }
 
 void TogglePause(void)
@@ -8833,6 +8935,7 @@ void WillPause(void)
 	when_to_pause = 0;
 
 	pauseduration = when_to_unpause = 0; // reset our globals
+	mm_pause_cap_ms = 0;                 // fresh matchmade-pause cap
 
 	G_bprint(2, "%s paused the game. He has %d remaining request(s).\n", pause_name,
 					pauses_remaining);
@@ -9043,6 +9146,16 @@ qbool is_rules_change_allowed(void)
 	{
 		G_sprint(self, 2, "%s is on, please toggle it off by using %s command first\n",
 					redtext("race mode"), redtext("race"));
+
+		return false;
+	}
+
+	// qwleague matchmade servers are spawned with a fixed config — rules can
+	// never change for their entire lifetime, not even during warmup.
+	if (cvar_string("k_allowed_tokens")[0])
+	{
+		G_sprint(self, 2, "%s\n",
+					redtext("This is a matchmade server — rules are locked."));
 
 		return false;
 	}

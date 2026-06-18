@@ -317,6 +317,13 @@ qbool ClientSay(qbool isTeamSay)
 		trap_CmdTokenize(text2);
 	}
 
+	// qwleague matchmade ruleset gate: if this player's connect-time f_ruleset
+	// probe is pending, capture & suppress the reply (and kick on a wrong one).
+	if (mm_capture_ruleset_reply(self, str))
+	{
+		return true;
+	}
+
 	if (f_check && (self->ct == ctPlayer))
 	{
 		if (!self->f_checkbuf)

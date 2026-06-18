@@ -829,6 +829,9 @@ void vote_check_all(void);
 #define OV_SWAPALL ( VOTE_FOFS ( swapall ) )
 #define MAX_RPICKUP_RECUSION 3
 #define MAX_PAUSE_REQUESTS 3
+// Max /extend uses per match (each adds +2:00 to a pause or technical timeout).
+// Pooled per match (not per player/team) so the total stall is bounded.
+#define MAX_MATCH_EXTENDS 2
 
 void ElectThink(void);
 void AbortElect(void);
@@ -1255,6 +1258,25 @@ void private_game_vote(void);
 void vote_check_privategame(void);
 qbool private_game_voteable(void);
 qbool private_game_by_default(void);
+
+// qwrumble matchmade-server helpers
+qbool is_matchmade_server(void);
+qbool mm_forced_name(gedict_t *p, char *out, int out_size);
+void mm_maybe_auto_start(void);
+void mm_fill_bots(void);
+void mm_handle_disconnect(void);
+void mm_notify_connect(void);
+void mm_shutdown_think(void);
+void mm_join_deadline_think(void);
+void mm_paused_tic(int duration_ms);
+qbool mm_forfeit_is_active(void);
+void mm_extend_forfeit_deadline(int ms);
+void mm_arm_ruleset_check(gedict_t *p);
+qbool mm_capture_ruleset_reply(gedict_t *p, const char *say_text);
+void mm_check_ruleset_deadlines(void);
+void mm_prewar_think(void);
+void mm_abandon_think(void);
+void mm_notify_aborted(void);
 
 // set when match is starting, otherwise a normal spawn
 extern qbool initial_match_spawns;

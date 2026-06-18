@@ -1604,7 +1604,11 @@ qbool is_private_game(void)
 
 qbool is_logged_in(gedict_t *p)
 {
-	return ezinfokey(p, "login")[0];
+	// Accept the standard "login" userinfo (set by MVDSV's auth flow) OR
+	// the "qwleague_token" key which clients can set freely via setinfo. The
+	// qwleague key is what links a player to their account on the qwleague
+	// backend for /official-1on1 matches.
+	return ezinfokey(p, "login")[0] || ezinfokey(p, "qwleague_token")[0];
 }
 
 qbool private_game_voteable(void)
@@ -1616,6 +1620,8 @@ qbool private_game_by_default(void)
 {
 	return cvar("k_privategame_default");
 }
+
+// }
 
 void vote_check_swapall(void)
 {

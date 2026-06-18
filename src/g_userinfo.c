@@ -264,6 +264,25 @@ qbool ClientUserInfoChanged(int after)
 //	G_bprint(2, "'%s' '%s' '%s'\n", arg_0, arg_1, arg_2 );
 
 	if (after && !strcmp(arg_1, "name")) {
+		// Anti-fakenick: on a matchmade server the name is locked to the
+		// player's registered QWLeague handle. Reject any client-chosen name
+		// and force it back. The initial server-side assignment (done in the
+		// connect gate) passes through here with arg_2 already == the handle.
+		char fname[CLIENT_NAME_LEN];
+		if (is_matchmade_server() && !self->isBot
+				&& mm_forced_name(self, fname, sizeof(fname)))
+		{
+			if (strneq(arg_2, fname))
+			{
+				SetUserInfo(self, "name", fname, 0);
+				stuffcmd_flags(self, STUFFCMD_IGNOREINDEMO,
+						"name \"%s\"\n", fname);
+				G_sprint(self, 2, "%s\n",
+						redtext("Your name is locked to your QWLeague account."));
+			}
+			strlcpy(self->netname, fname, CLIENT_NAME_LEN);
+			return true;
+		}
 		trap_CmdArgv(2, self->netname, CLIENT_NAME_LEN);
 		return false;
 	}
@@ -337,6 +356,22 @@ qbool FixPlayerColor(char *newcolor)
 qbool FixPlayerTeam(char *newteam)
 {
 	char *s1, *s2;
+
+	// Matchmade (qwleague) servers: teams are pre-assigned from the player's
+	// match token, so reject any switch to a different team. The initial
+	// server-side assignment (current team still empty) is allowed through.
+	if (is_matchmade_server())
+	{
+		char *cur = getteam(self);
+		if (cur[0] && strneq(newteam, cur))
+		{
+			G_sprint(self, 2, "%s\n",
+					redtext("Teams are assigned on matchmade servers."));
+			stuffcmd_flags(self, STUFFCMD_IGNOREINDEMO, "team \"%s\"\n", cur);
+			return true;
+		}
+		return false;
+	}
 
 	if (self->ct == ctSpec)
 	{

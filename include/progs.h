@@ -1129,6 +1129,12 @@ typedef struct gedict_s
 
 	char *f_checkbuf;						// for /cmd check f_xxx
 
+	// qwleague matchmade ruleset gate: deadline by which this player must have
+	// replied to the connect-time `f_ruleset` probe with the required ruleset,
+	// else they're kicked. 0 = not pending. Reply text is captured into
+	// f_checkbuf (reused) while this is armed.
+	float mm_rs_deadline;
+
 	// Yawnmode variables
 	vec3_t old_vel;							// store pre physicsthink velocity
 	float spawn_weights[MAX_SPAWN_WEIGHTS];	// spawn point weights used by "fair respawns"
