@@ -245,7 +245,6 @@ typedef struct vote_s
 	int hookcrhook;
 	int antilag;
 	int privategame;
-	int nospray;
 	//int kick_unauthed;
 	int swapall;
 

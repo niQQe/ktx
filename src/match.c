@@ -1702,11 +1702,6 @@ void PrintCountdown(int seconds)
 			strlcat(text, va("%s %5s\n", "NoItems", redtext("on")), sizeof(text));
 		}
 
-		if (cvar("k_nospray"))
-		{
-			strlcat(text, va("%s %5s\n", "NoSpray", redtext("on")), sizeof(text));
-		}
-
 		if (cvar("k_midair"))
 		{
 			strlcat(text, va("%s %6s\n", "Midair", redtext("on")), sizeof(text));
@@ -2571,8 +2566,6 @@ void StartTimer(void)
 	match_in_progress = 1;
 
 	localcmd("serverinfo status Countdown\n");
-
-	KTX_SpraysClearAll();
 
 	StartDemoRecord(); // if allowed
 

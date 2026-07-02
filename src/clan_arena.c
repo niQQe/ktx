@@ -295,6 +295,8 @@ void SM_PrepareCA(void)
 		WO_InitializeSpawns(); // init wipeout spawns
 	}
 
+	KTX_SpraysClearAll();
+
 	team1_score = team2_score = 0;
 	round_num = 1;
 
@@ -338,10 +340,9 @@ qbool isCA(void)
 
 qbool CA_CanSpray(void)
 {
-	// Players must be in play (not dead or unready)
-	if (!self->ca_ready || !self->in_play)
-	{
-		return false;
+	// Allow sprays during prewar
+	if (!match_in_progress) {
+		return true;
 	}
 
 	// During match, sprays are only allowed between rounds

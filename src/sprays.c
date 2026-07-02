@@ -1,23 +1,4 @@
 /*
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- *
- *  $Id$
- */
-
-/*
  * Server-authoritative spray policy for KTX.
  *
  * MVDSV owns the network protocol, pixel storage, and demo messages. KTX only
@@ -27,8 +8,7 @@
 
 #include "g_local.h"
 
-// Hard storage cap for the per-player visible spray queue. Prewar uses this
-// cap directly; active matches use k_player_spray_limit clamped to this size.
+// global limit - modes should specify a lower value 
 #define KTX_MAX_SPRAYS_PER_PLAYER 10
 
 typedef struct
@@ -39,18 +19,11 @@ typedef struct
 
 static ktx_player_sprays_t ktx_player_sprays[MAX_CLIENTS];
 
-// k_player_spray_limit is the per-player visible spray limit while a match is
-// active. Prewar uses the hard queue cap to prevent spam from exhausting the
-// server's global spray storage.
+// k_player_spray_limit is a per-player policy value; clamp it to the fixed size of
+// each player's tracked spray-id queue.
 static int KTX_SprayLimit(void)
 {
-	int limit;
-
-	if (!match_in_progress) {
-		return KTX_MAX_SPRAYS_PER_PLAYER;
-	}
-
-	limit = (int)cvar("k_player_spray_limit");
+	int limit = (int)cvar("k_player_spray_limit");
 
 	limit = bound(0, limit, KTX_MAX_SPRAYS_PER_PLAYER);
 
@@ -118,42 +91,15 @@ void KTX_SpraysForgetPlayer(gedict_t *player)
 
 qbool KTX_CanSpray(void)
 {
-	// Reject invalid entities and spectators.
 	if (KTX_SprayPlayerIndex(self) < 0 || self->ct != ctPlayer) {
 		return false;
 	}
 
-	// No sprays during intermission or end-of-match.
-	if (intermission_running || match_over) {
-		return false;
-	}
-
-	// No sprays while the server is paused.
-	if (cvar("sv_paused")) {
-		return false;
-	}
-
-	// No sprays during countdown.
-	if (match_in_progress == 1) {
-		return false;
-	}
-
-	// No sprays if nospray mode is enabled.
-	if (match_in_progress && cvar("k_nospray")) {
-		return false;
-	}
-
-	// CA/Wipeout decides its own in-match spray policy.
 	if (isCA()) {
 		return CA_CanSpray();
 	}
 
-	// RA decides its own in-match spray policy.
-	if (isRA()) {
-		return RA_CanSpray();
-	}
-
-	return true;
+	return false;
 }
 
 void KTX_SprayPlaced(int spray_id)
