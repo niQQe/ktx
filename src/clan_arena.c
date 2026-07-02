@@ -20,10 +20,6 @@ typedef struct wipeout_map_spawns_t
 
 // Some spawns require a custom radius to prevent abuse
 // Using 0 defaults to a radius of 84 units
-<<<<<<< HEAD
-// { {coords}, angle, name, radius }
-=======
->>>>>>> parent of 08b3d550 (WIPEOUT: additional dm3 spawns)
 static wipeout_spawn_config dm3_spawns[] = {
 	{ { -880, -232, -16 },	"tele/sng",	128 },
 	{ { 192, -208, -176 },	"big>ra",	0   },
