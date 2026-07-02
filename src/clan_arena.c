@@ -740,6 +740,11 @@ void CA_SendTeamInfo(gedict_t *t)
 			break;
 		}
 
+		if (t->ct == ctSpec && t->trackent && (t->trackent == NUM_FOR_EDICT(p)))
+		{
+			continue; // if we're spectating the player, don't send info about him
+		}
+
 		if (p->ca_ready || match_in_progress != 2) // be sure to send info if in prewar
 		{
 			if (match_in_progress == 2)
