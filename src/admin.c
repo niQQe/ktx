@@ -909,32 +909,6 @@ void ToggleFallBunny(void)
 	cvar_toggle_msg(self, "k_fallbunny", redtext("fallbunny"));
 }
 
-void ToggleSafeStrafe(void)
-{
-	int sv_safestrafe = bound(0, cvar("sv_safestrafe"), 1);
-
-	if (match_in_progress)
-	{
-		return;
-	}
-
-	if (++sv_safestrafe > 1)
-	{
-		sv_safestrafe = 0;
-	}
-
-	if (sv_safestrafe)
-	{
-		G_bprint(2, "%s enables %s \n", getname(self), redtext("safestrafe"));
-	}
-	else
-	{
-		G_bprint(2, "%s disables %s \n", getname(self), redtext("safestrafe"));
-	}
-
-	cvar_fset("sv_safestrafe", sv_safestrafe);
-}
-
 void sv_lock(void)
 {
 	int lock_time = 15;

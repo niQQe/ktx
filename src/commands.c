@@ -133,7 +133,6 @@ void ToggleSpawnicide(void);
 void ToggleBerzerk(void);
 void ToggleSpecTalk(void);
 void ToggleSpeed(void);
-void ToggleSafeStrafe(void);
 void VotePickup(void);
 void UserMode(float umode);
 void Wp_Reset(void);
@@ -373,7 +372,6 @@ const char CD_NODESC[] = "no desc";
 #define CD_TIMEDOWN			"-5 mins match time"
 #define CD_TIMEUP			"+5 mins match time"
 #define CD_FALLBUNNY		"toggle fallbunny"
-#define CD_SAFESTRAFE		"toggle safestrafe"
 #define CD_FRAGSDOWN		"-10 fraglimit"
 #define CD_FRAGSUP			"+10 fraglimit"
 #define CD_KILLQUAD			"kill the quad mode"
@@ -740,7 +738,6 @@ cmd_t cmds[] =
 	{ "timedown", 					DEF(TimeDown), 					5.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIMEDOWN },
 	{ "timeup", 					DEF(TimeUp), 					5.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIMEUP },
 	{ "fallbunny", 					ToggleFallBunny, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FALLBUNNY },
-	{ "safestrafe", 				ToggleSafeStrafe, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_SAFESTRAFE },
 	{ "fragsdown", 					FragsDown, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FRAGSDOWN },
 	{ "fragsup", 					FragsUp, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FRAGSUP },
 	{ "killquad", 					killquad, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_KILLQUAD },
