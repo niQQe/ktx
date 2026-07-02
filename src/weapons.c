@@ -1378,19 +1378,6 @@ void LightningDamage(vec3_t p1, vec3_t p2, gedict_t *from, float damage)
 	}
 }
 
-static void DischargeEvent(int radius, vec3_t orig)
-{
-	gedict_t *p;
-
-	for (p = world; (p = find_client(p));)
-	{
-		if (p->isBot)
-			continue;
-
-		stuffcmd(p, "//ktx discharge %d %f %f %f\n", radius, orig[0], orig[1], orig[2]);
-	}
-}
-
 void W_FireLightning(void)
 {
 	vec3_t org;
@@ -1445,7 +1432,6 @@ void W_FireLightning(void)
 				antilag_lagmove_all_hitscan(self);
 				T_RadiusDamage(self, self, 35 * cells, world, dtLG_DIS);
 				antilag_unmove_all();
-				DischargeEvent((35 * cells) + 40, self->s.v.origin);
 
 				return;
 			}
@@ -1465,7 +1451,6 @@ void W_FireLightning(void)
 			antilag_lagmove_all_hitscan(self);
 			T_RadiusDamage(self, self, 35 * cells, world, dtLG_DIS);
 			antilag_unmove_all();
-			DischargeEvent((35 * cells) + 40, self->s.v.origin);
 
 			return;
 		}
