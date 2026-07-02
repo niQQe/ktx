@@ -104,7 +104,6 @@ static qbool PredictEnemyLocationInFuture(gedict_t *enemy, float rel_time)
 	qbool predicted = false;
 
 	enemy->s.v.solid = SOLID_NOT;
-
 	VectorMA(enemy->s.v.origin, rel_time, enemy->s.v.velocity, testplace);
 	testplace[2] += 36;
 
