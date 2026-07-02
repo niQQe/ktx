@@ -59,7 +59,7 @@ void SendSpecInfo(gedict_t *spec, gedict_t *target_client);
 void del_from_specs_favourites(gedict_t *rm);
 void item_megahealth_rot(void);
 
-float WO_GetSpawnRadius(gedict_t *spawn_point);
+float WO_GetSpawnRadius(vec3_t origin);
 
 extern int g_matchstarttime;
 
@@ -1029,7 +1029,7 @@ static float GetEffectiveSpawnRadius(gedict_t *spot, float default_radius)
 {
 	if (cvar("k_clan_arena") == 2)
 	{
-		float custom_radius = WO_GetSpawnRadius(spot);
+		float custom_radius = WO_GetSpawnRadius(spot->s.v.origin);
 		if (custom_radius > 0)
 		{
 			return custom_radius;
@@ -2126,15 +2126,6 @@ void PutClientInServer(void)
 				"info_player_deathmatch" : streq(getteam(self), "red") ?
 				"info_player_team1_deathmatch" : "info_player_team2_deathmatch");
 		}
-		else if (cvar("k_clan_arena") == 2)  // Wipeout mode
-		{
-			spot = SelectSpawnPoint("info_player_wipeout");
-			// Fallback to regular spawns if no wipeout spawns exist
-			if (!spot)
-			{
-				spot = SelectSpawnPoint("info_player_deathmatch");
-			}
-		}
 		else if (isRA() && (isWinner(self) || isLoser(self)))
 		{
 			spot = SelectSpawnPoint("info_teleport_destination");
@@ -2150,13 +2141,6 @@ void PutClientInServer(void)
 	}
 
 	HM_log_spawn_point(self, spot);
-
-	// CRITICAL: Check that we actually found a spawn point
-	if (!spot)
-	{
-		G_Error("PutClientInServer: No spawn point found!\n");
-		return;
-	}
 
 	VectorCopy(spot->s.v.origin, self->s.v.origin);
 	self->s.v.origin[2] += 1;

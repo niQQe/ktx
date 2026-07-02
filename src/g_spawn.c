@@ -464,8 +464,6 @@ spawn_t spawns[] =
 // k_ctf_based_spawn 2 "within home base" spawns.
 	{ "info_player_team1_deathmatch", 	SUB_Null },
 	{ "info_player_team2_deathmatch", 	SUB_Null },
-// Wipeout mode spawns
-	{ "info_player_wipeout", 			SUB_Null },
 //
 // TF -- well, we does not support TF but require it for loading TF map as CTF map.
 //

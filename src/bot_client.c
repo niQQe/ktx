@@ -129,8 +129,6 @@ void BotPlayerDeathEvent(gedict_t *self)
 // Was: PutClientInServer_apply()
 void BotClientEntersEvent(gedict_t *self, gedict_t *spawn_pos)
 {
-	gedict_t *marker;
-
 	self->fb.oldwaterlevel = self->fb.oldwatertype = 0;
 	self->fb.desired_angle[0] = self->s.v.angles[0];
 	self->fb.desired_angle[1] = self->s.v.angles[1];
@@ -140,10 +138,7 @@ void BotClientEntersEvent(gedict_t *self, gedict_t *spawn_pos)
 	self->fb.last_rndaim_time = 0;
 	self->fb.wiggle_run_dir = 0;
 
-	// Find the nearest navigation marker to the spawn point
-	// Don't use spawn_pos directly - it's not a navigation marker!
-	marker = spawn_pos ? LocateMarker(spawn_pos->s.v.origin) : NULL;
-	SetMarker(self, marker);
+	SetMarker(self, spawn_pos);
 
 	self->fb.arrow = 0;
 	ClearLookObject(self);

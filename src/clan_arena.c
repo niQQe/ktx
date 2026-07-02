@@ -7,7 +7,6 @@
 typedef struct wipeout_spawn_config_t
 {
 	vec3_t origin;          // spawn point coordinates
-	float angle;          // spawn point angle (yaw)
 	char *name;             // spawn point name (for debugging)
 	float custom_radius;    // custom radius for this spawn (0 = use default)
 } wipeout_spawn_config;
@@ -21,16 +20,17 @@ typedef struct wipeout_map_spawns_t
 
 // Some spawns require a custom radius to prevent abuse
 // Using 0 defaults to a radius of 84 units
+<<<<<<< HEAD
 // { {coords}, angle, name, radius }
+=======
+>>>>>>> parent of 08b3d550 (WIPEOUT: additional dm3 spawns)
 static wipeout_spawn_config dm3_spawns[] = {
-	{ { -880, -232, -16 },	90,		"tele/sng",	400 },
-	{ { 192, -208, -176 },	90,		"big>ra",	300 },
-	{ { 1472, -928, -24 },	90,		"ya box",	200 },
-	{ { 1520, 432, -88 },	0,		"rl",		400 },
-	{ { -632, -680, -16 },	90,		"tele/ra",	400 },
-	{ { 512, 768, 216 }, 	-90,	"lifts",	300 },
-	{ { -387, 233, -16 }, 	0,		"sng",		200 },
-	{ { 2021, -446, -24 }, 	180,	"bridge",	400 }
+	{ { -880, -232, -16 },	"tele/sng",	128 },
+	{ { 192, -208, -176 },	"big>ra",	0   },
+	{ { 1472, -928, -24 },	"ya box",	0   },
+	{ { 1520, 432, -88 },	"rl",		300 },
+	{ { -632, -680, -16 },	"tele/ra",	128 },
+	{ { 512, 768, 216 }, 	"lifts",	128 }
 };
 
 static wipeout_map_spawns wipeout_spawn_configs[] = {
@@ -62,7 +62,8 @@ void EndRound(int alive_team);
 void show_tracking_info(gedict_t *p);
 
 // Wipeout spawn management functions
-float WO_GetSpawnRadius(gedict_t *spawn_point);
+static wipeout_spawn_config* WO_FindSpawnConfig(vec3_t origin);
+float WO_GetSpawnRadius(vec3_t origin);
 void WO_InitializeSpawns(void);
 
 gedict_t* ca_find_player(gedict_t *p, gedict_t *observer)
@@ -620,6 +621,7 @@ void CA_PutClientInServer(void)
 		self->spawn_delay = 0;
 
 		setmodel(self, "");
+		setorigin(self, PASSVEC3(self->s.v.origin));
 
 		if (!self->in_limbo || ca_round_pause)
 		{
@@ -1726,51 +1728,63 @@ void CA_Frame(void)
 	}
 }
 
+// Find spawn configuration for a given origin
+static wipeout_spawn_config* WO_FindSpawnConfig(vec3_t origin)
+{
+	int i, j;
+	
+	if (cvar("k_clan_arena") != 2)  // Only for wipeout mode
+	{
+		return NULL;
+	}
+	
+	// Find current map configuration
+	for (i = 0; wipeout_spawn_configs[i].mapname; i++)
+	{
+		if (streq(mapname, wipeout_spawn_configs[i].mapname))
+		{
+			// Search for matching spawn point
+			for (j = 0; j < wipeout_spawn_configs[i].spawn_count; j++)
+			{
+				if (VectorCompare(origin, wipeout_spawn_configs[i].spawns[j].origin))
+				{
+					return &wipeout_spawn_configs[i].spawns[j];
+				}
+			}
+			break;
+		}
+	}
+	
+	return NULL;
+}
 
 // Get custom spawn radius for a spawn point
-float WO_GetSpawnRadius(gedict_t *spawn_point)
+float WO_GetSpawnRadius(vec3_t origin)
 {
-	if (spawn_point && spawn_point->custom_radius > 0)
+	wipeout_spawn_config *config = WO_FindSpawnConfig(origin);
+	
+	if (config && config->custom_radius > 0)
 	{
-		return spawn_point->custom_radius;
+		return config->custom_radius;
 	}
 	
 	return 0;  // Use default radius
 }
 
-// Initialize wipeout spawns by creating info_player_wipeout entities
-// from the wipeout_spawn_configs array. These custom spawns are used
-// exclusively during wipeout mode
+// Initialize wipeout spawns (can be called to reload configurations)
 void WO_InitializeSpawns(void)
 {
 	if (cvar("k_clan_arena") == 2)
 	{
-		int i, j;
+		int i;
 		for (i = 0; wipeout_spawn_configs[i].mapname; i++)
 		{
 			if (streq(mapname, wipeout_spawn_configs[i].mapname))
 			{	
-				// Create spawn entities for each configured spawn point
-				for (j = 0; j < wipeout_spawn_configs[i].spawn_count; j++)
-				{
-					gedict_t *spawn_ent = spawn();
-					wipeout_spawn_config *spawn_cfg = &wipeout_spawn_configs[i].spawns[j];
-					
-					// Set entity properties
-					spawn_ent->classname = "info_player_wipeout";
-					
-					// Set origin and angles
-					VectorCopy(spawn_cfg->origin, spawn_ent->s.v.origin);
-					VectorSet(spawn_ent->s.v.angles, 0, spawn_cfg->angle, 0);
-					
-					// Custom wipeout radius
-					spawn_ent->custom_radius = spawn_cfg->custom_radius;
-				}
-				
 				if (cvar("developer"))
 				{
-					G_bprint(2, "Wipeout: Created %d custom spawn points for %s\n",
-						wipeout_spawn_configs[i].spawn_count, mapname);
+					G_bprint(2, "Wipeout: Using custom spawn configuration for %s (%d spawns)\n",
+                	mapname, wipeout_spawn_configs[i].spawn_count);
 				}
                 
 				break;
