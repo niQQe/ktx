@@ -340,50 +340,11 @@ void train_blocked(void)
 	T_Damage(other, self, self, self->dmg);
 }
 
-void train_reset(void)
-{
-	gedict_t *firsttarget;
-	vec3_t tmpv;
-
-	if (!self->firsttarget)
-	{
-		G_bprint(2, "train_reset: no firsttarget stored\n");
-		return;
-	}
-
-	firsttarget = find(world, FOFS(targetname), self->firsttarget);
-	if (!firsttarget)
-	{
-		G_bprint(2, "train_reset: couldn't find first path_corner\n");
-		return;
-	}
-
-	VectorSubtract(firsttarget->s.v.origin, self->s.v.mins, tmpv);
-	setorigin(self, tmpv[0], tmpv[1], tmpv[2]);
-
-	self->target = self->firsttarget;
-	self->think = (func_t )funcref_train_find;
-}
-
 void train_use(void)
 {
-	qbool isE1M2Practice = IsE1M2Practice();
-
-	if (isE1M2Practice && !self->firsttarget)
-	{
-		self->firsttarget = self->target;
-	}
-
 	if (self->think != (func_t) funcref_train_find)
 	{
-		if (isE1M2Practice)
-		{
-			train_reset();
-		}
-		else
-		{
-			return;
-		}
+		return;		// already activated
 	}
 
 	train_next();

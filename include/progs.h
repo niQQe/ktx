@@ -876,7 +876,6 @@ typedef struct gedict_s
 	string_t netname;
 	string_t target;
 	string_t targetname;
-	string_t firsttarget;
 	string_t message;
 	string_t noise;
 	string_t noise1;

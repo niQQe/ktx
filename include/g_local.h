@@ -1315,5 +1315,3 @@ int SpawnShowStatus(void);
 int SpawnicideStatus(void);
 void SpawnicideEnable(void);
 void SpawnicideDisable(void);
-
-qbool IsE1M2Practice(void);

@@ -81,13 +81,6 @@ void button_fire(void)
 
 	self->state = STATE_UP;
 
-	// Allow the button in the mega room floor to be pressed multiple times
-	// on E1M2 during practice mode.
-	if (IsE1M2Practice() && streq(self->model, "*16"))
-	{
-		self->wait = 1;
-	}
-
 	SUB_CalcMove(self->pos2, self->speed, button_wait);
 }
 
