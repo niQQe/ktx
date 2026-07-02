@@ -922,6 +922,13 @@ void vote_check_rpickup(int maxRecursion)
 
 void FixNoSpecs(void)
 {
+	// Matchmade (qwleague) servers stay no-specs for the whole life of the
+	// server, INCLUDING the empty pre-match window — otherwise this clears it on
+	// the fresh-spawn empty state and spectators could join the match.
+	if (is_matchmade_server())
+	{
+		return;
+	}
 	// turn off "no specs" mode if there no players left
 	if ((g_globalvars.time > 10) && !match_in_progress && !CountPlayers() && cvar("_k_nospecs"))
 	{

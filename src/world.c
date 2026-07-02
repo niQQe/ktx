@@ -572,6 +572,21 @@ void Customize_Maps(void)
 		jumpf_flag = -1000;
 	}
 
+	// Matchmade powerup rules, set per map (one server plays a whole Bo3 and the
+	// k_pow* cvars persist across changelevel, so we (re)apply them each map):
+	//   - 1on1 (duel): NEVER any powerups, on any map.
+	//   - team play (2on2/4on4): powerups on, EXCEPT dm4 (no powerups there).
+	if (is_matchmade_server() && (isDuel() || isTeam()))
+	{
+		int pow = isDuel() ? 0 : (streq("dm4", mapname) ? 0 : 1);
+
+		cvar_fset("k_pow", pow);
+		cvar_fset("k_pow_q", pow);
+		cvar_fset("k_pow_p", pow);
+		cvar_fset("k_pow_r", pow);
+		cvar_fset("k_pow_s", pow);
+	}
+
 	// spawn quad if map is aerowalk in this case
 	if (cvar("add_q_aerowalk") && streq("aerowalk", mapname))
 	{
@@ -1101,6 +1116,19 @@ void FirstFrame(void)
 	// k_shutdown_on_end: when 1, the server `quit`s itself after MatchEndStats.
 	// Used by the qwleague-agent so per-match mvdsv processes terminate cleanly.
 	RegisterCvarEx("k_shutdown_on_end", "0");
+	// qwleague Bo3/BoN series: one matchmade server plays an ordered list of
+	// maps, tracking the series score, and only self-terminates once a team
+	// clinches (k_series_bestof/2 + 1 wins) or the maps run out. bestof 1
+	// (default) = today's single-map behaviour. These survive `changelevel`
+	// (cvars are engine-side), which is how the series state persists across
+	// maps. k_series_continue is a transient one-shot set by EndMatch to let
+	// GotoNextMap load the next map (otherwise matchmade servers never cycle).
+	RegisterCvarEx("k_series_bestof", "1");
+	RegisterCvarEx("k_series_maps", "");
+	RegisterCvarEx("k_series_index", "0");
+	RegisterCvarEx("k_series_t1wins", "0");
+	RegisterCvarEx("k_series_t2wins", "0");
+	RegisterCvarEx("k_series_continue", "0");
 	// k_match_start_delay: countdown seconds once both players are on the
 	// matchmade server (overrides k_count for the matchmaking auto-start).
 	RegisterCvarEx("k_match_start_delay", "15");

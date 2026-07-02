@@ -1261,6 +1261,7 @@ qbool private_game_by_default(void);
 
 // qwrumble matchmade-server helpers
 qbool is_matchmade_server(void);
+qbool mm_token_allowed(const char *token);
 qbool mm_forced_name(gedict_t *p, char *out, int out_size);
 void mm_maybe_auto_start(void);
 void mm_fill_bots(void);
@@ -1271,6 +1272,8 @@ void mm_join_deadline_think(void);
 void mm_paused_tic(int duration_ms);
 qbool mm_forfeit_is_active(void);
 void mm_extend_forfeit_deadline(int ms);
+int mm_series_map_count(void);
+void mm_series_map_at(int idx, char *out, int out_sz);
 void mm_arm_ruleset_check(gedict_t *p);
 qbool mm_capture_ruleset_reply(gedict_t *p, const char *say_text);
 void mm_check_ruleset_deadlines(void);

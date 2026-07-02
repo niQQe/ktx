@@ -74,26 +74,29 @@ void PMOTDThink(void)
 
 			if (!authed && url[0])
 			{
-				// Player hasn't linked their token on this server yet.
+				// Player hasn't linked their token on this server yet. This
+				// splash stays up (manual fire-to-dismiss, see MakeMOTD) so they
+				// have time to read the instructions and set their token.
 				strlcat(buf, "Sign up and get your token at\n", sizeof(buf));
 				strlcat(buf, va("%s\n\n", redtext(url)), sizeof(buf));
 				strlcat(buf, "then in console:\n", sizeof(buf));
 				strlcat(buf,
 						va("%s\n", redtext("setinfo qwleague_token <your-token>")),
 						sizeof(buf));
+				strlcat(buf, va("\n%s", redtext("press FIRE to dismiss")),
+						sizeof(buf));
 			}
 			else
 			{
-				// Authed + assigned — waiting for the match to fill.
-				int needed = (int) cvar("k_mm_players");
-				const char *opp = (needed > 2) ? "opponents" : "opponent";
-
-				strlcat(buf, va("Server #%s\n\n", redtext(match_id)), sizeof(buf));
-				strlcat(buf, va("Waiting for your %s...\n", opp), sizeof(buf));
+				// Authed + assigned — just identify the QWLeague server. No
+				// match-fill status; this splash auto-dismisses shortly (see
+				// MakeMOTD), so there's no "press fire" prompt.
+				strlcat(buf, va("Server #%s\n", redtext(match_id)), sizeof(buf));
+				if (url[0])
+				{
+					strlcat(buf, va("%s\n", redtext(url)), sizeof(buf));
+				}
 			}
-
-			strlcat(buf, va("\n%s", redtext("press FIRE to dismiss")),
-					sizeof(buf));
 
 			G_centerprint(owner, "%s", buf);
 			self->s.v.nextthink = g_globalvars.time + 0.7;
@@ -204,11 +207,18 @@ void MakeMOTD(void)
 	motd->think = (func_t) MOTDThinkX;
 	motd->s.v.nextthink = g_globalvars.time + 0.1;
 
-	if (needs_qwleague || mm_splash)
+	if (needs_qwleague)
 	{
-		// Persistent splash: large timeout so player must dismiss it manually
-		// (by pressing fire). PMOTDThink already removes on +attack.
+		// Unauthed: persistent so the player has time to read the signup/token
+		// instructions and dismiss manually (PMOTDThink removes on +attack).
 		motd->attack_finished = g_globalvars.time + 3600;
+	}
+	else if (mm_splash)
+	{
+		// Authed matchmade: brief server-info splash that auto-dismisses (no
+		// "press fire"), so it's gone shortly after they connect. Firing still
+		// removes it early via PMOTDThink's +attack check.
+		motd->attack_finished = g_globalvars.time + 10;
 	}
 	else
 	{

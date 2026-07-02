@@ -559,6 +559,22 @@ void GotoNextMap(void)
 	char newmap[64] =
 		{ 0 };
 
+	// qwleague series: a mid-series matchmade server jumps straight to the next
+	// map in the ordered list (k_series_maps[k_series_index]). The one-shot
+	// k_series_continue (set by EndMatch) is cleared here so only the first
+	// caller this intermission triggers the changelevel — not once per player.
+	if (is_matchmade_server() && cvar("k_series_continue"))
+	{
+		char nm[64];
+		mm_series_map_at((int) cvar("k_series_index"), nm, sizeof(nm));
+		cvar_set("k_series_continue", "0");
+		if (nm[0])
+		{
+			changelevel(nm);
+			return;
+		}
+	}
+
 	// Matchmade servers self-terminate after the match (mm_shutdown). Never
 	// cycle the map from the intermission here: the reload would wipe the
 	// shutdown timer and re-arm the matchmaking auto-start. Stay on the frozen
@@ -621,6 +637,14 @@ void IntermissionThink(void)
 {
 	if (g_globalvars.time < intermission_exittime)
 	{
+		return;
+	}
+
+	// qwleague series: once the scoreboard wait is over, auto-advance to the
+	// next map — players shouldn't have to press a key between series maps.
+	if (deathmatch && is_matchmade_server() && cvar("k_series_continue"))
+	{
+		GotoNextMap();
 		return;
 	}
 
@@ -1348,33 +1372,7 @@ qbool CanConnect(void)
 		if (allowed[0] && !self->isBot)
 		{
 			const char *my_token = ezinfokey(self, "qwleague_token");
-			qbool ok = false;
-			if (my_token[0])
-			{
-				const char *p = allowed;
-				char tok[64];
-				size_t i;
-				while (*p)
-				{
-					while (*p == ' ' || *p == '\t' || *p == ',')
-					{
-						p++;
-					}
-					i = 0;
-					while (*p && *p != ' ' && *p != '\t' && *p != ','
-							&& i < sizeof(tok) - 1)
-					{
-						tok[i++] = *p++;
-					}
-					tok[i] = 0;
-					if (i > 0 && streq(tok, my_token))
-					{
-						ok = true;
-						break;
-					}
-				}
-			}
-			if (!ok)
+			if (!mm_token_allowed(my_token))
 			{
 				G_sprint(self, 2,
 						"%s\n"
@@ -1474,62 +1472,13 @@ qbool CanConnect(void)
 				}
 			}
 
-			// IP binding: the first IP to use a token claims it. Subsequent
-			// connects with the same token from a different IP are rejected
-			// (stream-snipe defense). Resets each time the .so loads, i.e.
-			// once per spawned matchmade server.
-			{
-				// One slot per possible roster token. 4on4 has 8 tokens; a
-				// smaller table left the extra tokens unbound, so the IP-mismatch
-				// stream-snipe guard silently didn't cover half a 4on4 roster.
-				#define MM_TOKEN_SLOTS 8
-				static struct {
-					char token[64];
-					char ip[64];
-				} mm_token_ips[MM_TOKEN_SLOTS];
-
-				const char *connecting_ip = ezinfokey(self, "ip");
-				int slot, free_slot = -1;
-				qbool found = false;
-				qbool ip_ok = false;
-
-				for (slot = 0; slot < MM_TOKEN_SLOTS; slot++)
-				{
-					if (!mm_token_ips[slot].token[0])
-					{
-						if (free_slot < 0)
-						{
-							free_slot = slot;
-						}
-						continue;
-					}
-					if (streq(mm_token_ips[slot].token, my_token))
-					{
-						found = true;
-						ip_ok = streq(mm_token_ips[slot].ip, connecting_ip);
-						break;
-					}
-				}
-
-				if (found && !ip_ok)
-				{
-					G_sprint(self, 2,
-							"%s\n"
-							"This match token was first used from a different IP.\n"
-							"If you are the rightful owner and your network changed,\n"
-							"return to the website and queue again for a fresh token.\n",
-							redtext("ip mismatch"));
-					return false;
-				}
-
-				if (!found && free_slot >= 0 && connecting_ip[0])
-				{
-					strlcpy(mm_token_ips[free_slot].token, my_token,
-							sizeof(mm_token_ips[free_slot].token));
-					strlcpy(mm_token_ips[free_slot].ip, connecting_ip,
-							sizeof(mm_token_ips[free_slot].ip));
-				}
-			}
+			// IP-to-token binding intentionally removed (2026-06-30): QuakeWorld
+			// players routinely connect through qwfwd/UDP proxies for better ping,
+			// and their egress IP can change between (or within) a series. The old
+			// "first IP claims the token" guard locked those legitimate players out
+			// with "ip mismatch". We accept the reduced stream-snipe defense in
+			// exchange for not breaking proxied play. The concurrent-use guard
+			// above (only one live connection per token at a time) still stands.
 		}
 	}
 
