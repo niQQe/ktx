@@ -990,16 +990,6 @@ static void SM_PrepareClients(void)
 	for (p = world; (p = find_plr(p));)
 	{
 		players[player_count++] = p;
-		p->socdDetectionCount = 0;
-		p->socdValidationCount = 0;
-		p->fStrafeChangeCount = 0;
-		p->fFramePerfectStrafeChangeCount = 0;
-		p->fLastSideMoveSpeed = 0;
-		p->matchStrafeChangeCount = 0;
-		p->matchPerfectStrafeCount = 0;
-		p->totalStrafeChangeCount = 0;
-		p->totalPerfectStrafeCount = 0;
-		p->nullStrafeCount = 0;
 	}
 
 	for (i = player_count - 1; i > 0; i--)
@@ -1236,7 +1226,6 @@ void HideSpawnPoints(void);
 void StartMatch(void)
 {
 	char date[64];
-	gedict_t *p;
 
 	// reset bloodfest vars.
 	bloodfest_reset();
@@ -1290,20 +1279,6 @@ void StartMatch(void)
 
 	SM_PrepareClients(); // put clients in server and reset some params
 
-	for (p = world; (p = find_client(p));)
-	{
-		p->socdDetectionCount = 0;
-		p->socdValidationCount = 0;
-		p->fStrafeChangeCount = 0;
-		p->fFramePerfectStrafeChangeCount = 0;
-		p->fLastSideMoveSpeed = 0;
-		p->matchStrafeChangeCount = 0;
-		p->matchPerfectStrafeCount = 0;
-		p->totalStrafeChangeCount = 0;
-		p->totalPerfectStrafeCount = 0;
-		p->nullStrafeCount = 0;
-	}
-	
 	if (!QVMstrftime(date, sizeof(date), "%Y-%m-%d %H:%M:%S %Z", 0))
 	{
 		date[0] = 0;

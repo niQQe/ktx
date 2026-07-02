@@ -2845,17 +2845,17 @@ qbool socd_movement_assisted(gedict_t *p)
 	{
 		return false;
 	}
-	
+
 	if ((float)p->totalPerfectStrafeCount / p->totalStrafeChangeCount > 0.58f)
 	{
 		return true;
 	}
-	
+
 	if (p->socdValidationCount > 0 &&
 	((float)p->socdDetectionCount / p->socdValidationCount) >= 0.10f)
 	{
 		return true;
 	}
-	
+
 	return false;
 }
