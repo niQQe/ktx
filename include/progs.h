@@ -1192,7 +1192,6 @@ typedef struct gedict_s
 	char ljteam[1024];						// team that player is requesting to join
 	int ca_ammo_grenades;					// grenade ammo
 	int tracking_enabled;
-	qbool moveup_pressed;					// track moveup key state for switching tracking
 	int round_deaths;						// number of times player has died in the round
 	int round_kills;						// number of kills in the round
 	int spawn_delay;						// total delay between death and spawn

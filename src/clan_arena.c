@@ -613,7 +613,6 @@ void CA_PutClientInServer(void)
 		// tracking enabled by default
 		self->tracking_enabled = 1;
 		self->trackent = 0; // Initialize trackent for dead players
-		self->moveup_pressed = false; // Initialize moveup state
 
 		self->in_play = false;
 		self->round_deaths++; //increment death count for wipeout
@@ -1396,7 +1395,6 @@ void CA_player_pre_think(void)
 		{
 			if (self->tracking_enabled)
 			{
-				// Handle jump button
 				if (self->s.v.button2)
 				{
 					if (((int)(self->s.v.flags)) & FL_JUMPRELEASED)
@@ -1409,18 +1407,6 @@ void CA_player_pre_think(void)
 				else
 				{
 					self->s.v.flags = ((int)(self->s.v.flags)) | FL_JUMPRELEASED;
-				}
-				
-				// Handle moveup button (movement[2] > 0 means moveup is pressed)
-				if (self->movement[2] > 0)
-				{
-					self->moveup_pressed = true;
-				}
-				else if (self->moveup_pressed)
-				{
-					// Moveup was released, switch to next player
-					self->moveup_pressed = false;
-					track_player_next(self);
 				}
 			}
 		}
