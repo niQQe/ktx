@@ -1179,21 +1179,6 @@ void CA_OnePlayerStats(gedict_t *p, qbool series_over)
 	p->ca_round_lgfired = a_lg;
 }
 
-void UnlimitedEndRoundAmmo(void)
-{
-	gedict_t *p;
-	int ammo = 9999;
-
-	for (p = world; (p = find_plr(p));)
-	{
-		p->s.v.ammo_nails = ammo;
-		p->s.v.ammo_shells = ammo;
-		p->s.v.ammo_rockets = ammo;
-		p->s.v.ammo_cells = ammo;
-		p->ca_ammo_grenades = ammo;
-	}
-}
-
 void EndRound(int alive_team)
 {
 	gedict_t *p;
@@ -1208,8 +1193,6 @@ void EndRound(int alive_team)
 		loser_team = alive_team ? (alive_team == 1 ? 2 : 1) : 0;
 		loser_respawn_time = loser_team ? team_last_alive_time(loser_team) : 999;
 	}
-
-	UnlimitedEndRoundAmmo(); // Surviving players get unlimited ammo during endround phase
 
 	pause_count = Q_rint(pause_time - g_globalvars.time);
 
@@ -1331,6 +1314,11 @@ void EndRound(int alive_team)
 
 			print_player_stats(false);
 			team_round_summary(alive_team);
+		}
+
+		if (pause_count < 4)
+		{
+			ra_match_fight = 1; // disable firing
 		}
 	}
 }
