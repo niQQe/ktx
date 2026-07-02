@@ -4876,8 +4876,6 @@ void PlayerPostThink(void)
 		self->client_predflags = PRDFL_FORCEOFF;
 	else if (!CA_can_fire(self))
 		self->client_predflags = PRDFL_FORCEOFF;
-	else if ((cvar("k_clan_arena") == 2) && ca_round_pause && self->in_play)
-		self->client_predflags = PRDFL_FORCEOFF;
 	else if ((match_in_progress == 1) || !can_prewar(true))
 		self->client_predflags = PRDFL_FORCEOFF;
 	// disable LG prediction in prewar when underwater to avoid weird shit
