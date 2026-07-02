@@ -163,16 +163,16 @@ void CheckTiming(void)
 			// ok we are detect - player lagged, so do something, effects is exception
 			if (firstTime)
 			{
-                if (timing_players_action & TA_INVINCIBLE)
-                {
-                    p->k_timingTakedmg = p->s.v.takedamage;
-                    p->k_timingSolid = p->s.v.solid;
-                    p->k_timingMovetype = p->s.v.movetype;
-                    p->s.v.takedamage = 0;
-                    p->s.v.solid = 0;
-                    p->s.v.movetype = 0;
-                    SetVector(p->s.v.velocity, 0, 0, 0); // speed is zeroed and not restored
-                }
+				if (timing_players_action & TA_INVINCIBLE)
+				{
+					p->k_timingTakedmg = p->s.v.takedamage;
+					p->k_timingSolid = p->s.v.solid;
+					p->k_timingMovetype = p->s.v.movetype;
+					p->s.v.takedamage = 0;
+					p->s.v.solid = 0;
+					p->s.v.movetype = 0;
+					SetVector(p->s.v.velocity, 0, 0, 0); // speed is zeroed and not restored
+				}
 			}
 
 		}
@@ -3359,7 +3359,7 @@ void ClientDisconnect(void)
 
 void BackFromLag(void)
 {
-    int timing_players_action = TA_ALL & (int)cvar("timing_players_action");
+	int timing_players_action = TA_ALL & (int)cvar("timing_players_action");
 
 	self->k_timingWarnTime = 0;
 
@@ -3368,12 +3368,12 @@ void BackFromLag(void)
 		G_bprint(2, "%s %s\n", self->netname, redtext("is back from lag"));
 	}
 
-    if (timing_players_action & TA_INVINCIBLE)
-    {
-        self->s.v.takedamage = self->k_timingTakedmg;
-        self->s.v.solid = self->k_timingSolid;
-        self->s.v.movetype = self->k_timingMovetype;
-    }
+	if (timing_players_action & TA_INVINCIBLE)
+	{
+		self->s.v.takedamage = self->k_timingTakedmg;
+		self->s.v.solid = self->k_timingSolid;
+		self->s.v.movetype = self->k_timingMovetype;
+	}
 }
 
 #define S_AXE	( 1<<0 )
