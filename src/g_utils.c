@@ -2576,23 +2576,6 @@ void on_unadmin(gedict_t *p)
 	stuffcmd_flags(p, STUFFCMD_IGNOREINDEMO, "on_unadmin\n");
 }
 
-void on_countdown_start(gedict_t *p)
-{
-	if (!(iKey(p, "ev") & EV_ON_COUNTDOWN_START))
-	{
-		return;
-	}
-
-	if (p->ct == ctPlayer)
-	{
-		stuffcmd_flags(p, STUFFCMD_IGNOREINDEMO, "on_countdown_start\n");
-	}
-	else
-	{
-		stuffcmd_flags(p, STUFFCMD_IGNOREINDEMO, "on_spec_countdown_start\n");
-	}
-}
-
 void ev_print(gedict_t *p, int new_ev, int old_ev, int bit, char *msg)
 {
 	int on;
@@ -2614,7 +2597,6 @@ void info_ev_update(gedict_t *p, char *from, char *to)
 	ev_print(p, new_ev, old_ev, EV_ON_MATCH_BREAK, "[on_matchbreak] event: ");
 	ev_print(p, new_ev, old_ev, EV_ON_ADMIN, "[on_admin] event: ");
 	ev_print(p, new_ev, old_ev, EV_ON_UNADMIN, "[on_unadmin] event: ");
-	ev_print(p, new_ev, old_ev, EV_ON_COUNTDOWN_START, "[on_countdown_start] event: ");
 }
 
 void info_kf_update(gedict_t *p, char *from, char *to)

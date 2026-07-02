@@ -425,7 +425,6 @@ void on_match_end(gedict_t *p);
 void on_match_break(gedict_t *p);
 void on_admin(gedict_t *p);
 void on_unadmin(gedict_t *p);
-void on_countdown_start(gedict_t *p);
 
 void info_ev_update(gedict_t *p, char *from, char *to);
 void info_kf_update(gedict_t *p, char *from, char *to);
