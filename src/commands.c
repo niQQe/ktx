@@ -4178,6 +4178,7 @@ const char common_um_init[] =
 	"k_pow_pickup 0\n"
 	"sv_loadentfiles_dir \"\"\n"
 	"sv_antilag 1\n"				// antilag on
+	"k_drp 1\n"						// drop pack message on
 	"k_bloodfest 0\n"
 	"k_killquad 0\n"
 	"pm_airstep \"\"\n"				// airstep off by default
