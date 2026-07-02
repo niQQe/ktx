@@ -509,17 +509,10 @@ void BotSetCommand(gedict_t *self)
 			ApplyPhysics(self);
 		}
 
-		if ((int)cvar(FB_CVAR_NEW_MOVE_SCALE))
+		move_scale = sv_maxspeed * 1.25f;
+		if (move_scale > 400.0f)
 		{
-			move_scale = sv_maxspeed * 1.25f;
-			if (move_scale > 400.0f)
-			{
-				move_scale = 400.0f;
-			}
-		}
-		else
-		{
-			move_scale = 800.0f;
+			move_scale = 400.0f;
 		}
 
 		if (self->s.v.waterlevel <= 1)
