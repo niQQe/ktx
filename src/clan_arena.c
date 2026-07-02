@@ -24,14 +24,13 @@ typedef struct wipeout_map_spawns_t
 // { {coords}, angle, name, radius }
 static wipeout_spawn_config dm3_spawns[] = {
 	{ { -880, -232, -16 },	90,		"tele/sng",	400 },
-	{ { 192, -208, -176 },	90,		"ra/mega",	300 },
+	{ { 192, -208, -176 },	90,		"big>ra",	300 },
 	{ { 1472, -928, -24 },	90,		"ya box",	200 },
 	{ { 1520, 432, -88 },	0,		"rl",		400 },
 	{ { -632, -680, -16 },	90,		"tele/ra",	400 },
 	{ { 512, 768, 216 }, 	-90,	"lifts",	300 },
 	{ { -387, 233, -16 }, 	0,		"sng",		200 },
-	{ { 1959, -449, -24 }, 	180,	"bridge",	1000 },
-	{ { 1846, 690, -180 }, 180,		"pent",		2000 }
+	{ { 2021, -446, -24 }, 	180,	"bridge",	400 }
 };
 
 static wipeout_map_spawns wipeout_spawn_configs[] = {
