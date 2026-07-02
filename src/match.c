@@ -1250,16 +1250,6 @@ void SM_on_CountdownStart(void)
 	}
 }
 
-void SM_on_CountdownBreak(void)
-{
-	gedict_t *p;
-
-	for (p = world; (p = find_client(p));)
-	{
-		on_countdown_break(p);
-	}
-}
-
 // Reset player frags and start the timer.
 void HideSpawnPoints(void);
 
@@ -3142,7 +3132,6 @@ void PlayerBreak(void)
 				{
 					G_bprint(2, "%s %s\n", self->netname, redtext("stops the countdown"));
 					StopTimer(1);
-					SM_on_CountdownBreak();
 				}
 				else
 				{
