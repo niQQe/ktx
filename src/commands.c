@@ -1874,7 +1874,7 @@ void ModStatus1(void)
 	G_sprint(self, 2, "%-14.14s %-3d\n", redtext("Fraglimit"), (int)fraglimit);
 	G_sprint(self, 2, "%-14.14s %-4.4s ", redtext("Powerups"), Get_PowerupsStr());
 	G_sprint(self, 2, "%-14.14s %-3.3s\n", redtext("Discharge"), OnOff(cvar("k_dis")));
-	G_sprint(self, 2, "%-14.14s %-3.3s\n", redtext("Drop Msg"), OnOff(cvar("k_drp")));
+	G_sprint(self, 2, "%-14.14s %-3.3s\n", redtext("Drop Message"), OnOff(cvar("k_drp")));
 	G_sprint(self, 2, "%-14.14s %-4.4s ", redtext("Drop Quad"), OnOff(cvar("dq")));
 	G_sprint(self, 2, "%-14.14s %-3.3s\n", redtext("Drop Ring"), OnOff(cvar("dr")));
 	G_sprint(self, 2, "%-14.14s %-4.4s ", redtext("Fair Backpacks"), get_frp_str());

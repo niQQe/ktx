@@ -1633,7 +1633,7 @@ void PrintCountdown(int seconds)
 
 		if (cvar("k_drp"))
 		{
-			strlcat(text, va("%s %5s\n", "DropMsg", dig3((int)cvar("k_drp"))), sizeof(text));
+			strlcat(text, va("%s %5s\n", "Drop Message", dig3((int)cvar("k_drp"))), sizeof(text));
 		}
 
 		if (cvar("k_noitems") && !isRACE())
