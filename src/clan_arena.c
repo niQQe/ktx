@@ -568,7 +568,6 @@ void CA_PutClientInServer(void)
 
 		self->in_play = true;
 		self->in_limbo = false;
-		self->track_target = NULL; // Reset track target when respawning
 
 		if (!self->teamcolor && self->ca_ready)
 		{
@@ -614,7 +613,6 @@ void CA_PutClientInServer(void)
 		// tracking enabled by default
 		self->tracking_enabled = 1;
 		self->trackent = 0; // Initialize trackent for dead players
-		self->track_target = NULL; // Reset track target when dying
 		self->moveup_pressed = false; // Initialize moveup state
 
 		self->in_play = false;
@@ -1475,43 +1473,29 @@ void CA_player_pre_think(void)
 
 void CA_spectator_think(void)
 {
-	gedict_t *target;
+	gedict_t *target, *teammate;
+	int id;
 
-	// Safety check for valid goalentity
-	if (!self->s.v.goalentity || self->s.v.goalentity == EDICT_TO_PROG(world))
-	{
-		return;
-	}
-	
 	target = PROG_TO_EDICT(self->s.v.goalentity); // who we are spectating
 
-	// If spectating a dead player
-	if (target && target != world && target->ct == ctPlayer && !target->in_play)
-	{		
-		// If the dead player is tracking someone, use smooth tracking via trackent
-		if (target->tracking_enabled && target->track_target && target->track_target->in_play)
-		{
-			// Set trackent to follow who the dead player is following
-			self->trackent = NUM_FOR_EDICT(target->track_target);
-			self->hideentity = EDICT_TO_PROG(target->track_target);
-		}
-		else
-		{
-			// Dead player not tracking anyone, clear trackent
-			self->trackent = 0;
-			self->hideentity = 0;
-		}
-	}
-	else
+	// If spectating a dead player, switch to an alive teammate
+	if (target && target->ct == ctPlayer && !target->in_play)
 	{
-		// Not spectating a dead player, clear trackent so normal spectating works
-		self->trackent = 0;
-		self->hideentity = 0;
+		// Find any alive teammate
+		teammate = ca_find_player(world, target);
+		if (teammate && teammate->in_play && teammate != target)
+		{
+			// Use stuffcmd to switch the spectator to the alive teammate
+			if ((id = GetUserID(teammate)) > 0)
+			{
+				stuffcmd_flags(self, STUFFCMD_IGNOREINDEMO, "track %d\n", id);
+			}
+		}
 	}
 	
-	// Get the current viewing target
+	// Get the current viewing target (may have changed due to stuffcmd)
 	target = PROG_TO_EDICT(self->s.v.goalentity);
-	if (target && target != world && target->ct == ctPlayer)
+	if (target && target->ct == ctPlayer)
 	{
 		if (match_in_progress == 2 && ra_match_fight == 2 && round_time > 2 && !ca_round_pause)
 		{
