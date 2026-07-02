@@ -729,8 +729,7 @@ void TimerThink(void)
 			return;
 		}
 
-		G_bprint(2, "\220%s\221 minute%s remaining\n",
-			cvar("k_kteam_messages") ? dig1(self->cnt) : dig3(self->cnt), count_s(self->cnt));
+		G_bprint(2, "\220%s\221 minute%s remaining\n", dig3(self->cnt), count_s(self->cnt));
 
 		self->s.v.nextthink = g_globalvars.time + 1;
 
@@ -743,10 +742,8 @@ void TimerThink(void)
 				if (sc)
 				{
 					G_bprint(2, "%s \220%s\221 leads by %s frag%s\n", redtext("Team"),
-						cvar_string((sc > 0 ? "_k_team1" : "_k_team2")),
-						cvar("k_kteam_messages")
-							? dig1(abs((int)sc)) : dig3(abs((int)sc)),
-						count_s(abs((int)sc)));
+								cvar_string((sc > 0 ? "_k_team1" : "_k_team2")), dig3(abs((int)sc)),
+								count_s(abs((int)sc)));
 				}
 				else
 				{
@@ -774,10 +771,8 @@ void TimerThink(void)
 					}
 
 					G_bprint(2, "%s \220%s\221 leads by %s frag%s\n", redtext("Team"),
-						cvar_string("_k_team1"),
-						cvar("k_kteam_messages")
-							? dig1(abs((int)sc)) : dig3(abs((int)sc)),
-						count_s(abs((int)sc)));
+								cvar_string("_k_team1"), dig3(abs((int)sc)),
+								count_s(abs((int)sc)));
 				}
 				else if ((s2 > s1) && (s2 > s3))
 				{
@@ -792,10 +787,8 @@ void TimerThink(void)
 					}
 
 					G_bprint(2, "%s \220%s\221 leads by %s frag%s\n", redtext("Team"),
-						cvar_string("_k_team2"),
-						cvar("k_kteam_messages")
-							? dig1(abs((int)sc)) : dig3(abs((int)sc)),
-						count_s(abs((int)sc)));
+								cvar_string("_k_team2"), dig3(abs((int)sc)),
+								count_s(abs((int)sc)));
 				}
 				else if ((s3 > s1) && (s3 > s2))
 				{
@@ -810,10 +803,8 @@ void TimerThink(void)
 					}
 
 					G_bprint(2, "%s \220%s\221 leads by %s frag%s\n", redtext("Team"),
-						cvar_string("_k_team3"),
-						cvar("k_kteam_messages")
-							? dig1(abs((int)sc)) : dig3(abs((int)sc)),
-						count_s(abs((int)sc)));
+								cvar_string("_k_team3"), dig3(abs((int)sc)),
+								count_s(abs((int)sc)));
 				}
 				else
 				{
@@ -827,8 +818,7 @@ void TimerThink(void)
 
 	if ((self->cnt == 1) && ((self->cnt2 == 30) || (self->cnt2 == 15) || (self->cnt2 <= 10)))
 	{
-		G_bprint(2, "\220%s\221 second%s\n",
-			cvar("k_kteam_messages") ? dig1(self->cnt2) : dig3(self->cnt2), count_s(self->cnt2));
+		G_bprint(2, "\220%s\221 second%s\n", dig3(self->cnt2), count_s(self->cnt2));
 	}
 
 	self->s.v.nextthink = g_globalvars.time + 1;
@@ -1329,8 +1319,7 @@ void StartMatch(void)
 
 		if (!k_matchLess || cvar("k_matchless_countdown"))
 		{
-			G_bprint(2, "%s\n", cvar("k_kteam_messages")
-				? "The match has begun!" : redtext("The match has begun!"));
+			G_bprint(2, "%s\n", redtext("The match has begun!"));
 		}
 	}
 
