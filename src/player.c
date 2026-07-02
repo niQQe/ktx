@@ -760,8 +760,6 @@ void DeathBubbles(float num_bubbles);
 void PainSound(void)
 {
 	int rs;
-	int k_prewar_mode = (int)cvar("k_prewar");
-	qbool block_prewar_effects = (match_in_progress != 2) && (k_prewar_mode != 3);
 
 	if (ISDEAD(self))
 	{
@@ -774,7 +772,7 @@ void PainSound(void)
 	{
 		DeathBubbles(1);
 
-		if (block_prewar_effects)
+		if (match_in_progress != 2)
 		{
 			return;
 		}
@@ -794,7 +792,7 @@ void PainSound(void)
 	if (self->s.v.watertype == CONTENT_SLIME)
 	{
 // FIX ME       put in some steam here
-		if (block_prewar_effects)
+		if (match_in_progress != 2)
 		{
 			return;
 		}
@@ -813,7 +811,7 @@ void PainSound(void)
 
 	if (self->s.v.watertype == CONTENT_LAVA)
 	{
-		if (block_prewar_effects)
+		if (match_in_progress != 2)
 		{
 			return;
 		}
@@ -989,14 +987,9 @@ void player_pain(struct gedict_s *attacker, float take)
 {
 //	G_bprint(2, "player_pain\n");
 
-	if ((match_in_progress != 2) && ((int)cvar("k_prewar") != 3))
+	if (match_in_progress != 2)
 	{
 		return; // no pain at all in prewar
-	}
-
-	if ((match_in_progress != 2) && ((int)cvar("k_prewar") == 3) && (self == attacker))
-	{
-		return; // so self damage pain in prewar 3
 	}
 
 	if (isCA() && (streq(getteam(self), getteam(attacker)) || self->no_pain))
@@ -1293,9 +1286,6 @@ void PlayerBreak(void);
 
 void PlayerDie(void)
 {
-	int k_prewar_mode = (int)cvar("k_prewar");
-	qbool prewar_fight = ((match_in_progress != 2) && (k_prewar_mode == 3));
-
 	self->ca_alive = false;
 
 	if (!self->isBot && tot_mode_enabled() && cvar(FB_CVAR_BREAK_ON_DEATH))
@@ -1374,7 +1364,7 @@ void PlayerDie(void)
 		return;
 	}
 
-	if ((match_in_progress == 2) || prewar_fight)
+	if (match_in_progress == 2)
 	{
 		DeathSound();
 	}

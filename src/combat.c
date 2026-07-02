@@ -454,8 +454,6 @@ void T_Damage(gedict_t *targ, gedict_t *inflictor, gedict_t *attacker, float dam
 	char *attackerteam, *targteam, *attackername, *victimname;
 	qbool tp4teamdmg = false;
 	qbool isWipeout = cvar("k_clan_arena") == 2;
-	int k_prewar_mode = (int)cvar("k_prewar");
-	qbool prewar_fight = ((match_in_progress != 2) && (k_prewar_mode == 3));
 
 	//midair and instagib
 	float playerheight = 0, midheight = 0;
@@ -474,20 +472,18 @@ void T_Damage(gedict_t *targ, gedict_t *inflictor, gedict_t *attacker, float dam
 		return;
 	}
 
-	// if k_prewar is 3, only take damage from other players
-	if (prewar_fight)
-	{	
-		if (attacker->ct == ctPlayer)
-		{
-			// Don't damage self in prewar even if k_prewar is 3
-			if (attacker == targ)
-			{
-				tp4teamdmg = true;
-			}
-		}
-		else
+	// don't bounce around players in prewar who wish to be left alone
+	if (match_in_progress != 2 && targ->leavemealone)
+	{
+		if (attacker != targ && ((targ->ct == ctPlayer) && (attacker->ct == ctPlayer)))
 		{
 			return;
+		}
+		else if (dtTELE1 == targ->deathtype	// always do tele damage
+				|| dtTELE2 == targ->deathtype	// always do tele damage
+				|| dtTELE3 == targ->deathtype)	// always do tele damage
+		{
+			// telefrags still work, to avoid getting stuck
 		}
 	}
 
@@ -675,7 +671,7 @@ void T_Damage(gedict_t *targ, gedict_t *inflictor, gedict_t *attacker, float dam
 
 	dmg_dealt += save;
 
-	if ((match_in_progress == 2) || prewar_fight)
+	if (match_in_progress == 2)
 	{
 		targ->s.v.armorvalue = targ->s.v.armorvalue - save;
 	}
@@ -962,7 +958,7 @@ void T_Damage(gedict_t *targ, gedict_t *inflictor, gedict_t *attacker, float dam
 	BotDamageInflictedEvent(attacker, targ);
 #endif
 
-	if ((match_in_progress == 2 || prewar_fight) && ((int)cvar("k_dmgfrags") || lgc_enabled()))
+	if ((match_in_progress == 2) && ((int)cvar("k_dmgfrags") || lgc_enabled()))
 	{
 		if ((attacker->ct == ctPlayer) && (targ->ct == ctPlayer) && (attacker != targ))
 		{
@@ -980,7 +976,7 @@ void T_Damage(gedict_t *targ, gedict_t *inflictor, gedict_t *attacker, float dam
 
 	// do the damage
 
-	if ((match_in_progress == 2) || prewar_fight || (dtSUICIDE == targ->deathtype) // do suicide damage anyway
+	if ((match_in_progress == 2) || (dtSUICIDE == targ->deathtype) // do suicide damage anyway
 			|| TELEDEATH(targ) || (k_practice && targ->ct != ctPlayer) // #practice mode#
 			|| (take >= 99999)) // do such huge damage even in prewar, prewar because indirectly here match_in_progress != 2
 	{
@@ -1030,7 +1026,7 @@ void T_Damage(gedict_t *targ, gedict_t *inflictor, gedict_t *attacker, float dam
 	}
 
 	// show damage in sbar
-	if ((match_in_progress != 2) && !prewar_fight && ISLIVE(targ) && !k_matchLess)
+	if ((match_in_progress != 2) && ISLIVE(targ) && !k_matchLess)
 	{
 		if (!midair || ((int)targ->s.v.flags & FL_ONGROUND))
 		{
@@ -1154,12 +1150,12 @@ void T_Damage(gedict_t *targ, gedict_t *inflictor, gedict_t *attacker, float dam
 	}
 
 	// mid air bonuses
-	if (midair && (match_in_progress == 2 || prewar_fight) && (attacker != targ) && take && rl_dmg)
+	if (midair && (match_in_progress == 2) && (attacker != targ) && take && rl_dmg)
 	{
 		MidairDamageBonus(attacker, targ, midheight);
 	}
 
-	if (midair && (match_in_progress == 2 || prewar_fight) && stomp_dmg)
+	if (midair && (match_in_progress == 2) && stomp_dmg)
 	{
 		attacker->ps.mid_stomps++;
 		targ->s.v.frags -= 3;

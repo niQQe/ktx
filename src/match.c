@@ -1320,11 +1320,6 @@ void StartMatch(void)
 
 	SM_PrepareClients(); // put clients in server and reset some params
 
-	if ((int)cvar("k_prewar") == 3)
-	{
-		refresh_plus_scores();
-	}
-
 	for (p = world; (p = find_client(p));)
 	{
 		p->socdDetectionCount = 0;

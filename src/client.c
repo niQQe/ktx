@@ -2020,8 +2020,6 @@ void PutClientInServer(void)
 	int items;
 	int tele_flags;
 	int i;
-	int k_prewar_mode = (int)cvar("k_prewar");
-	qbool prewar_fight = ((match_in_progress != 2) && (k_prewar_mode == 3));
 
 	self->trackent = 0;
 
@@ -2079,15 +2077,6 @@ void PutClientInServer(void)
 	if (!((int)self->s.v.weapon & (int)self->s.v.items))
 		self->s.v.weapon = W_BestWeapon();
 	W_SetCurrentAmmo();
-
-	if (prewar_fight && !isRA())
-	{
-		self->s.v.health = 100;
-		self->s.v.max_health = max(self->s.v.max_health, self->s.v.health);
-		self->s.v.armortype = 0.8;
-		self->s.v.armorvalue = 200;
-		self->s.v.items = ((int)self->s.v.items) | IT_ARMOR3;
-	}
 
 	self->attack_finished = self->client_time;
 	self->th_pain = player_pain;
@@ -4878,11 +4867,6 @@ void PlayerPostThink(void)
 		self->client_predflags = PRDFL_FORCEOFF;
 	else if ((match_in_progress == 1) || !can_prewar(true))
 		self->client_predflags = PRDFL_FORCEOFF;
-	// disable LG prediction in prewar when underwater to avoid weird shit
-	else if ((match_in_progress != 2)
-			&& (self->s.v.weapon == IT_LIGHTNING)
-			&& (self->s.v.waterlevel > 1))
-		self->client_predflags = PRDFL_FORCEOFF;
 
 	WeaponPrediction_MarkSendFlags();
 	//
@@ -4894,11 +4878,8 @@ void PlayerPostThink(void)
 		float velocity = sqrt(
 				self->s.v.velocity[0] * self->s.v.velocity[0]
 						+ self->s.v.velocity[1] * self->s.v.velocity[1]);
-		int k_prewar_mode = (int)cvar("k_prewar");
-		qbool prewar_fight = ((match_in_progress != 2) && (k_prewar_mode == 3));
 
-		if (!match_in_progress && !prewar_fight && !match_over && !k_captains && !k_matchLess
-				&& !isHoonyModeAny())
+		if (!match_in_progress && !match_over && !k_captains && !k_matchLess && !isHoonyModeAny())
 		{
 			if (iKey(self, "kf") & KF_SPEED)
 			{
@@ -5471,7 +5452,7 @@ void ClientObituary(gedict_t *targ, gedict_t *attacker)
 	// Set it so it should update scores at next attempt.
 	k_nochange = 0;
 
-	if ((match_in_progress != 2) && ((int)cvar("k_prewar") != 3))
+	if (match_in_progress != 2)
 	{
 		return; // nothing TODO in non match
 	}

@@ -3102,7 +3102,6 @@ qbool can_prewar(qbool fire)
 
 	switch (k_prewar)
 	{
-		case 3:
 		case 1:
 			goto captains;
 			// probably u can fire/jump
