@@ -224,7 +224,6 @@ void ToggleVwep(void);
 void TogglePause(void);
 void ToggleArena(void);
 void ToggleToT(void);
-void ToggleDropMessage(void);
 
 void Spawn666Time(void);
 
@@ -379,7 +378,6 @@ const char CD_NODESC[] = "no desc";
 #define CD_DROPQUAD			"drop quad when killed"
 #define CD_DROPRING			"drop ring when killed"
 #define CD_DROPPACK			"drop pack when killed"
-#define CD_DROPMSG			"toggle drop pack message"
 #define CD_SILENCE			"toggle spectator talk"
 #define CD_REPORT			"simple teamplay report"
 #define CD_RULES			"show game rules"
@@ -725,7 +723,6 @@ cmd_t cmds[] =
 	{ "powerups_pickup", 			TogglePuPickup, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_PUPICKUP },
 	{ "antilag", 					antilag, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_ANTILAG },
 	{ "discharge", 					ToggleDischarge, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DISCHARGE },
-	{ "dropmessage", 				ToggleDropMessage, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DROPMSG },
 	{ "dm", 						ShowDMM, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DM },
 	{ "dmm1", 						DEF(ChangeDM), 					1, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DMM1 },
 	{ "dmm2", 						DEF(ChangeDM), 					2, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DMM2 },
@@ -1874,7 +1871,6 @@ void ModStatus1(void)
 	G_sprint(self, 2, "%-14.14s %-3d\n", redtext("Fraglimit"), (int)fraglimit);
 	G_sprint(self, 2, "%-14.14s %-4.4s ", redtext("Powerups"), Get_PowerupsStr());
 	G_sprint(self, 2, "%-14.14s %-3.3s\n", redtext("Discharge"), OnOff(cvar("k_dis")));
-	G_sprint(self, 2, "%-14.14s %-3.3s\n", redtext("Drop Message"), OnOff(cvar("k_drp")));
 	G_sprint(self, 2, "%-14.14s %-4.4s ", redtext("Drop Quad"), OnOff(cvar("dq")));
 	G_sprint(self, 2, "%-14.14s %-3.3s\n", redtext("Drop Ring"), OnOff(cvar("dr")));
 	G_sprint(self, 2, "%-14.14s %-4.4s ", redtext("Fair Backpacks"), get_frp_str());
@@ -2867,16 +2863,6 @@ void ToggleDischarge(void)
 	}
 
 	cvar_toggle_msg(self, "k_dis", redtext("discharges"));
-}
-
-void ToggleDropMessage(void)
-{
-	if (match_in_progress)
-	{
-		return;
-	}
-
-	cvar_toggle_msg(self, "k_drp", redtext("Dropped Pack Messages"));
 }
 
 void ShowDMM(void)
@@ -4178,7 +4164,6 @@ const char common_um_init[] =
 	"k_pow_pickup 0\n"
 	"sv_loadentfiles_dir \"\"\n"
 	"sv_antilag 1\n"				// antilag on
-	"k_drp 1\n"						// drop pack message on
 	"k_bloodfest 0\n"
 	"k_killquad 0\n"
 	"pm_airstep \"\"\n"				// airstep off by default
