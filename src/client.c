@@ -51,6 +51,7 @@ void CheckFinishCaptain(void);
 void MakeMOTD(void);
 void ImpulseCommands(void);
 void WeaponPrediction_ResetBaseline(void);
+qbool W_CanSwitch(int wp, qbool warn);
 void StartDie(void);
 void ZeroFpsStats(void);
 void item_megahealth_rot(void);
@@ -912,8 +913,10 @@ void SP_info_player_deathmatch(void)
 void k_respawn(gedict_t *p, qbool body)
 {
 	gedict_t *swap = self;
+	int respawn_impulse;
 
 	self = p; // warning
+	respawn_impulse = (int)self->s.v.impulse;
 
 	self->s.v.deadflag = DEAD_RESPAWNABLE;
 	self->wreg_attack = 0;
@@ -933,6 +936,15 @@ void k_respawn(gedict_t *p, qbool body)
 	// respawn
 	PutClientInServer();
 	WeaponPrediction_ResetBaseline();
+
+	// Keep intentional weapon-select respawn commands, but drop stale/invalid backups.
+	if (((respawn_impulse >= 1) && (respawn_impulse <= 8)) || respawn_impulse == 22)
+	{
+		if (W_CanSwitch(respawn_impulse, false))
+		{
+			self->s.v.impulse = respawn_impulse;
+		}
+	}
 
 	self = swap;
 }
