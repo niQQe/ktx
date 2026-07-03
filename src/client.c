@@ -64,6 +64,18 @@ float WO_GetSpawnRadius(vec3_t origin);
 
 extern int g_matchstarttime;
 
+static float CurrentClientPing(void)
+{
+	char *ping = ezinfokey(self, "ping_current");
+
+	if (!strnull(ping))
+	{
+		return atof(ping);
+	}
+
+	return atof(ezinfokey(self, "ping"));
+}
+
 void CheckAll(void)
 {
 	static float next_check = -1;
@@ -4834,7 +4846,7 @@ void PlayerPostThink(void)
 	antilag_log(self, self->antilag_data);
 	if (cvar("sv_antilag") == 1)
 	{
-		self->client_ping = atof(ezinfokey(self, "ping"));
+		self->client_ping = CurrentClientPing();
 		if (cvar("k_midair") && (self->super_damage_finished > g_globalvars.time - (self->client_ping)/1000))
 			self->client_predflags = (int)self->client_predflags | PRDFL_MIDAIR;
 

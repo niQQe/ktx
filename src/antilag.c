@@ -22,6 +22,27 @@ float time_corrected;
 void antilag_lagmove_all_playeronly(gedict_t *e, float ms);
 float Physics_PushEntity(float push_x, float push_y, float push_z, int failonstartsolid);
 
+static qbool antilag_current_rewind(gedict_t *e, float *ms)
+{
+	char *rewind = ezinfokey(e, "antilag_rewind");
+
+	if (strnull(rewind))
+		return false;
+
+	*ms = atof(rewind) / 1000;
+	return true;
+}
+
+static float antilag_current_ping(gedict_t *e)
+{
+	char *ping = ezinfokey(e, "ping_current");
+
+	if (!strnull(ping))
+		return atof(ping) / 1000;
+
+	return atof(ezinfokey(e, "ping")) / 1000;
+}
+
 static void antilag_mark_projectile_runtime(gedict_t *e)
 {
 	if (HAVEEXTENSION(G_SETLASTRUNTIME))
@@ -595,12 +616,16 @@ void antilag_unmove_all(void)
 
 void antilag_lagmove_all_hitscan(gedict_t *e)
 {
-	float ms = (atof(ezinfokey(e, "ping")) / 1000);
+	float ms;
 
 	if (cvar("sv_antilag") != 1)
 		return;
 
-	ms -= (ms < ANTILAG_MAX_PREDICTION ? (1 / 77.0) : ANTILAG_MAX_PREDICTION);
+	if (!antilag_current_rewind(e, &ms))
+	{
+		ms = antilag_current_ping(e);
+		ms -= (ms < ANTILAG_MAX_PREDICTION ? (1 / 77.0) : ANTILAG_MAX_PREDICTION);
+	}
 
 	if (ms > ANTILAG_REWIND_MAXHITSCAN)
 		ms = ANTILAG_REWIND_MAXHITSCAN;
@@ -612,7 +637,7 @@ void antilag_lagmove_all_hitscan(gedict_t *e)
 
 void antilag_lagmove_all_proj(gedict_t *owner, gedict_t *e)
 {
-	float ms = (atof(ezinfokey(owner, "ping")) / 1000);
+	float ms = antilag_current_ping(owner);
 	float step_time, current_time;
 	antilag_t *list;
 	vec3_t old_org;
@@ -737,7 +762,7 @@ void antilag_lagmove_all_proj(gedict_t *owner, gedict_t *e)
 
 void antilag_lagmove_all_proj_bounce(gedict_t *owner, gedict_t *e)
 {
-	float ms = (atof(ezinfokey(owner, "ping")) / 1000);
+	float ms = antilag_current_ping(owner);
 	const float newmis_time = 0.05;
 	float step_time, current_time;
 	antilag_t *list;
