@@ -1446,6 +1446,14 @@ qbool CanConnect(void)
 				}
 			}
 
+			// Pin the validated match token into a protected (*) userinfo key so
+			// end-of-match stats identify this player by the token verified HERE
+			// at connect — never by the client-settable "qwleague_token", which a
+			// reconnect resend or stray setinfo can mutate mid-series (that
+			// mislabeled a player's scoreboard row with a teammate's token in
+			// match 336). Clients cannot modify *-keys, so it stays authoritative.
+			SetUserInfo(self, "*mtoken", my_token, SETUSERINFO_STAR);
+
 			// Single-slot-per-token: if another connected player already
 			// holds this token, reject. Prevents stream-sniping where a
 			// leaked ephemeral token could be reused to displace the

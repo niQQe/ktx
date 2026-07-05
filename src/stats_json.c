@@ -344,12 +344,15 @@ void json_player_detail(fileHandle_t handle, int player_num, gedict_t *player, c
 	S2di(handle, INDENT6 "\"bottom-color\": %d," JSON_CR, iKey(player, "bottomcolor"));
 	S2di(handle, INDENT6 "\"ping\": %d," JSON_CR, iKey(player, "ping"));
 	{
-		// qwleague matchmaking identifies players by their per-match token, so
-		// prefer it. A player's QW-auth "login" userinfo would otherwise win
-		// (and only shows up mid-match on some clients), breaking identification
-		// — that's what stranded the forfeited series map. Casual servers have
-		// no qwleague_token, so they fall back to login.
-		const char *login_id = ezinfokey(player, "qwleague_token");
+		// Prefer the token pinned at connect (*mtoken — protected, clients
+		// cannot change it) over the mutable client-set "qwleague_token": a
+		// mid-series userinfo change once mislabeled a row (match 336).
+		// Casual servers set neither, so fall back to the QW-auth login.
+		const char *login_id = ezinfokey(player, "*mtoken");
+		if (!login_id[0])
+		{
+			login_id = ezinfokey(player, "qwleague_token");
+		}
 		if (!login_id[0])
 		{
 			login_id = ezinfokey(player, "login");
