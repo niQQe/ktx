@@ -1421,6 +1421,21 @@ qbool CanConnect(void)
 						if (tok[0] && team[0] && streq(tok, my_token))
 						{
 							SetUserInfo(self, "team", team, 0);
+							// Team colors are locked on matchmade servers:
+							// red = 4, blue = 13 (the same pair the CTF
+							// code forces). Set the authoritative userinfo
+							// AND stuff the client so its own color cvar
+							// agrees; later change attempts are rejected in
+							// ClientUserInfoChanged (mm_forced_color).
+							if (streq(team, "red") || streq(team, "blue"))
+							{
+								int c = streq(team, "red") ? 4 : 13;
+
+								SetUserInfo(self, "topcolor", va("%d", c), 0);
+								SetUserInfo(self, "bottomcolor", va("%d", c), 0);
+								stuffcmd_flags(self, STUFFCMD_IGNOREINDEMO,
+										"color %d\n", c);
+							}
 							break;
 						}
 					}
@@ -1467,7 +1482,16 @@ qbool CanConnect(void)
 					{
 						continue;
 					}
-					if (streq(ezinfokey(other, "qwleague_token"), my_token))
+					// Compare against the pinned *mtoken (authoritative — the
+					// other player passed this same gate), not the mutable
+					// client key, which its holder could blank to hide from
+					// this check.
+					const char *other_token = ezinfokey(other, "*mtoken");
+					if (!other_token[0])
+					{
+						other_token = ezinfokey(other, "qwleague_token");
+					}
+					if (streq(other_token, my_token))
 					{
 						G_sprint(self, 2,
 								"%s\n"

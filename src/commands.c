@@ -8769,9 +8769,15 @@ void PausedTic(int duration)
 		}
 	}
 
-	// Unpause on schedule, or if the game has ended for some reason
+	// Unpause on schedule, or if the game has ended for some reason. Never on
+	// schedule while a disconnect technical-timeout holds the pause — a stale
+	// when_to_unpause (e.g. scheduled just before a re-drop armed a new window)
+	// firing here would resume play with a player missing and stop the
+	// forfeit countdown for good. (The timeout's own resume paths clear
+	// mm_forfeit_active BEFORE scheduling, so they pass this guard.)
 	if ((!k_matchLess && match_in_progress != 2)
-			|| (when_to_unpause && duration >= when_to_unpause))
+			|| (when_to_unpause && duration >= when_to_unpause
+					&& !mm_forfeit_is_active()))
 	{
 		when_to_unpause = pauseduration = 0; // reset our globals
 		mm_pause_cap_ms = 0;
@@ -8848,6 +8854,19 @@ void TogglePause(void)
 	if ((int)cvar("sv_paused") & 1)
 	{
 		// UNPAUSE
+
+		// qwleague: the disconnect technical-timeout freezes the game via this
+		// same engine pause — an unpause request here would resume play with a
+		// player missing, stop PausedTic (so the forfeit deadline could never
+		// fire), and bypass the short-handed team's "proceed" vote. Refuse it;
+		// the timeout resolves itself (return / proceed / extend / deadline).
+		if (mm_forfeit_is_active())
+		{
+			G_sprint(self, 2, "%s\n",
+					redtext("A technical timeout is in progress - it resumes when the "
+							"missing player returns (or type extend / proceed / abort)."));
+			return;
+		}
 
 		// pause release is not applied immediately, but after a countdown
 		if (when_to_unpause)
