@@ -1448,6 +1448,21 @@ qbool CanConnect(void)
 						if (tok[0] && team[0] && streq(tok, my_token))
 						{
 							SetUserInfo(self, "team", team, 0);
+							// Team colors are locked on matchmade servers:
+							// red = 4, blue = 13 (the same pair the CTF
+							// code forces). Set the authoritative userinfo
+							// AND stuff the client so its own color cvar
+							// agrees; later change attempts are rejected in
+							// ClientUserInfoChanged (mm_forced_color).
+							if (streq(team, "red") || streq(team, "blue"))
+							{
+								int c = streq(team, "red") ? 4 : 13;
+
+								SetUserInfo(self, "topcolor", va("%d", c), 0);
+								SetUserInfo(self, "bottomcolor", va("%d", c), 0);
+								stuffcmd_flags(self, STUFFCMD_IGNOREINDEMO,
+										"color %d\n", c);
+							}
 							break;
 						}
 					}
@@ -1473,6 +1488,14 @@ qbool CanConnect(void)
 				}
 			}
 
+			// Pin the validated match token into a protected (*) userinfo key so
+			// end-of-match stats identify this player by the token verified HERE
+			// at connect — never by the client-settable "qwleague_token", which a
+			// reconnect resend or stray setinfo can mutate mid-series (that
+			// mislabeled a player's scoreboard row with a teammate's token in
+			// match 336). Clients cannot modify *-keys, so it stays authoritative.
+			SetUserInfo(self, "*mtoken", my_token, SETUSERINFO_STAR);
+
 			// Single-slot-per-token: if another connected player already
 			// holds this token, reject. Prevents stream-sniping where a
 			// leaked ephemeral token could be reused to displace the
@@ -1486,7 +1509,16 @@ qbool CanConnect(void)
 					{
 						continue;
 					}
-					if (streq(ezinfokey(other, "qwleague_token"), my_token))
+					// Compare against the pinned *mtoken (authoritative — the
+					// other player passed this same gate), not the mutable
+					// client key, which its holder could blank to hide from
+					// this check.
+					const char *other_token = ezinfokey(other, "*mtoken");
+					if (!other_token[0])
+					{
+						other_token = ezinfokey(other, "qwleague_token");
+					}
+					if (streq(other_token, my_token))
 					{
 						G_sprint(self, 2,
 								"%s\n"

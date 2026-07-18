@@ -1293,6 +1293,7 @@ qbool private_game_by_default(void);
 qbool is_matchmade_server(void);
 qbool mm_token_allowed(const char *token);
 qbool mm_forced_name(gedict_t *p, char *out, int out_size);
+int mm_forced_color(gedict_t *p);
 void mm_maybe_auto_start(void);
 void mm_fill_bots(void);
 void mm_handle_disconnect(void);
