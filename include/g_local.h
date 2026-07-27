@@ -1281,6 +1281,7 @@ void mm_check_ruleset_deadlines(void);
 void mm_prewar_think(void);
 void mm_abandon_think(void);
 void mm_notify_aborted(void);
+void mm_prematch_clocks_reset(void);
 
 // set when match is starting, otherwise a normal spawn
 extern qbool initial_match_spawns;
