@@ -2282,6 +2282,9 @@ static char mm_first_leaver[64] = "";
 #define MM_CORRELATED_DROP_MS 5000
 static qbool mm_drop_correlated = false;
 static int mm_last_pause_ms = 0;  // duration_ms as of the last PausedTic
+// Last technical-timeout centerprint we actually sent, so PausedTic (every
+// frame) only re-sends when the text changes — see mm_paused_tic.
+static char mm_paused_cp_last[192] = "";
 
 // Accessors so the pause/extend command (commands.c) can see and extend the
 // disconnect technical-timeout without exposing the statics.
@@ -2297,6 +2300,7 @@ void mm_extend_forfeit_deadline(int ms)
 		mm_forfeit_deadline_ms += ms;
 		// Re-arm milestone announcements so the new time is shown.
 		mm_forfeit_announce_sec = 0;
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
 	}
 }
 
@@ -2655,6 +2659,7 @@ void mm_paused_tic(int duration_ms)
 	if (match_over || !match_in_progress)
 	{
 		mm_forfeit_active = false;
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
 		return;
 	}
 
@@ -2673,6 +2678,7 @@ void mm_paused_tic(int duration_ms)
 		// blipped at 2:00 would remain "first leaver" for the whole map and
 		// eat the blame if the OPPONENT later abandons and both end up gone.
 		mm_forfeit_active = false;
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
 		mm_first_leaver[0] = 0;
 		mm_drop_correlated = false;
 		G_bprint(PRINT_HIGH, "%s\n",
@@ -2686,6 +2692,7 @@ void mm_paused_tic(int duration_ms)
 		// Deadline expired. Resolve based on who's missing. Leave the engine
 		// paused — EndMatch fires now anyway and stats POST is unaffected.
 		mm_forfeit_active = false;
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
 		if (outcome == 1)
 		{
 			if (mm_in_abort_window())
@@ -2726,42 +2733,66 @@ void mm_paused_tic(int duration_ms)
 	// player) is offered FIRST while the match still has extends left — without
 	// advertising it, players don't know they can wait and the timeout silently
 	// auto-resolves (the original bug: nobody knew to type it).
-	if (outcome == 1)
+	//
+	// ONLY when the text actually changes (i.e. once a second). A centerprint is a
+	// RELIABLE message and PausedTic runs EVERY FRAME — at maxfps 77 the old
+	// unconditional print queued ~77 reliable messages per second per client.
+	// mvdsv's netchan cannot flush that, its back buffers fill, and the ENGINE
+	// DROPS the client: "WARNING: MAX_BACK_BUFFERS for X" / "X overflowed". That
+	// is what happened in match 589 (2026-07-27) — 11s into a technical timeout
+	// the server dropped squeeze and then G-Flip, and mm_handle_disconnect then
+	// processed them as players who "also disconnected", feeding correlated-drop
+	// and forfeit attribution. The server was blaming players for its own flood.
+	// (Vanilla PausedTic in commands.c has always throttled with `prevtime`.)
 	{
-		qbool team = (int) cvar("k_mm_players") > 2;  // proceed only in team modes
-		qbool can_extend = (mm_extends_used < MAX_MATCH_EXTENDS);
-		qbool can_abort = mm_in_abort_window();
-		const char *label = can_abort ? "auto-abort" : "map forfeit";
-		char hint[96];
+		char cp[192];
 
-		hint[0] = 0;
-		if (can_extend)
+		if (outcome == 1)
 		{
-			strlcat(hint, "extend", sizeof(hint));
-		}
-		if (team)
-		{
-			if (hint[0]) { strlcat(hint, " / ", sizeof(hint)); }
-			strlcat(hint, "proceed", sizeof(hint));
-		}
-		if (can_abort)
-		{
-			if (hint[0]) { strlcat(hint, " / ", sizeof(hint)); }
-			strlcat(hint, "abort", sizeof(hint));
-		}
+			qbool team = (int) cvar("k_mm_players") > 2;  // proceed only in team modes
+			qbool can_extend = (mm_extends_used < MAX_MATCH_EXTENDS);
+			qbool can_abort = mm_in_abort_window();
+			const char *label = can_abort ? "auto-abort" : "map forfeit";
+			char hint[96];
 
-		if (hint[0])
-		{
-			G_cp2all("TECHNICAL TIMEOUT\n\n%s in %d\n\ntype: %s", label, left_sec, hint);
+			hint[0] = 0;
+			if (can_extend)
+			{
+				strlcat(hint, "extend", sizeof(hint));
+			}
+			if (team)
+			{
+				if (hint[0]) { strlcat(hint, " / ", sizeof(hint)); }
+				strlcat(hint, "proceed", sizeof(hint));
+			}
+			if (can_abort)
+			{
+				if (hint[0]) { strlcat(hint, " / ", sizeof(hint)); }
+				strlcat(hint, "abort", sizeof(hint));
+			}
+
+			if (hint[0])
+			{
+				snprintf(cp, sizeof(cp), "TECHNICAL TIMEOUT\n\n%s in %d\n\ntype: %s",
+						label, left_sec, hint);
+			}
+			else
+			{
+				snprintf(cp, sizeof(cp), "TECHNICAL TIMEOUT\n\n%s in %d",
+						label, left_sec);
+			}
 		}
 		else
 		{
-			G_cp2all("TECHNICAL TIMEOUT\n\n%s in %d", label, left_sec);
+			snprintf(cp, sizeof(cp), "TECHNICAL TIMEOUT\n\nIncomplete - abort in %d",
+					left_sec);
 		}
-	}
-	else
-	{
-		G_cp2all("TECHNICAL TIMEOUT\n\nIncomplete - abort in %d", left_sec);
+
+		if (!streq(cp, mm_paused_cp_last))
+		{
+			G_cp2all("%s", cp);
+			strlcpy(mm_paused_cp_last, cp, sizeof(mm_paused_cp_last));
+		}
 	}
 
 	// Print to chat at milestones. Surface `extend` here too so it survives in
@@ -2897,28 +2928,41 @@ void mm_handle_disconnect(void)
 			extern int when_to_unpause;
 			extern int pauseduration;
 
-			G_bprint(PRINT_HIGH, "%s %s\n",
-					self->netname,
-					redtext(va("disconnected. Match paused - %d:%02d for them to return.",
-							window_sec / 60, window_sec % 60)));
-			G_bprint(PRINT_HIGH, "%s\n",
-					redtext("Stay connected - the timeout resolves in your favor. "
-							"If you leave too, YOU can be forfeited."));
-			if ((int) cvar("k_mm_players") > 2)
+			// One print, not five. Each G_bprint is a separate RELIABLE message to
+			// every client, and this block fires at the exact moment the engine
+			// gets paused — i.e. when the netchan is least able to flush. Same
+			// text, same "announce the commands at every state" behaviour, a fifth
+			// of the reliable pressure. See mm_paused_tic for the overflow this
+			// class of traffic caused in match 589.
 			{
-				G_bprint(PRINT_HIGH, "%s\n",
-						redtext("Your team can type \"proceed\" to play on short-handed."));
-			}
-			if (mm_in_abort_window())
-			{
-				G_bprint(PRINT_HIGH, "%s\n",
-						redtext("Early game: type \"abort\" to void it (no Elo) - auto-aborts if nobody returns."));
-			}
-			if (mm_extends_used < MAX_MATCH_EXTENDS)
-			{
-				G_bprint(PRINT_HIGH, "%s\n",
-						redtext(va("Type \"extend\" to wait +2:00 longer for them (%d available).",
-								MAX_MATCH_EXTENDS - mm_extends_used)));
+				char msg[512];
+
+				snprintf(msg, sizeof(msg),
+						"%s\n%s\n",
+						redtext(va("disconnected. Match paused - %d:%02d for them to return.",
+								window_sec / 60, window_sec % 60)),
+						redtext("Stay connected - the timeout resolves in your favor. "
+								"If you leave too, YOU can be forfeited."));
+				if ((int) cvar("k_mm_players") > 2)
+				{
+					strlcat(msg, redtext("Your team can type \"proceed\" to play on short-handed."),
+							sizeof(msg));
+					strlcat(msg, "\n", sizeof(msg));
+				}
+				if (mm_in_abort_window())
+				{
+					strlcat(msg, redtext("Early game: type \"abort\" to void it (no Elo) - auto-aborts if nobody returns."),
+							sizeof(msg));
+					strlcat(msg, "\n", sizeof(msg));
+				}
+				if (mm_extends_used < MAX_MATCH_EXTENDS)
+				{
+					strlcat(msg, redtext(va("Type \"extend\" to wait +2:00 longer for them (%d available).",
+									MAX_MATCH_EXTENDS - mm_extends_used)),
+							sizeof(msg));
+					strlcat(msg, "\n", sizeof(msg));
+				}
+				G_bprint(PRINT_HIGH, "%s %s", self->netname, msg);
 			}
 
 			// Pause the engine so the match clock stops and the remaining player
@@ -2935,9 +2979,11 @@ void mm_handle_disconnect(void)
 			// and the forfeit deadline would never resolve.
 			when_to_unpause = 0;
 			mm_forfeit_active = true;
+   mm_paused_cp_last[0] = 0;  // let the next window print immediately
 			mm_forfeit_start_ms = ((int) cvar("sv_paused") & 1) ? pauseduration : 0;
 			mm_forfeit_deadline_ms = mm_forfeit_start_ms + window_sec * 1000;
 			mm_forfeit_announce_sec = 0;
+   mm_paused_cp_last[0] = 0;  // let the next window print immediately
 			mm_last_pause_ms = mm_forfeit_start_ms;  // fresh window for correlated-drop timing
 			mm_drop_correlated = false;
 			trap_setpause(1);
@@ -3020,6 +3066,7 @@ void PlayerProceed(void)
 	if (present > 0 && voted >= present)
 	{
 		mm_forfeit_active = false;
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
 		mm_proceed_reset();
 		G_bprint(PRINT_HIGH, "%s\n",
 				redtext("Team chose to proceed - resuming short-handed in 3 seconds."));
@@ -3045,6 +3092,7 @@ void PlayerMatchAbort(void)
 		return;
 	}
 	mm_forfeit_active = false;
+ mm_paused_cp_last[0] = 0;  // let the next window print immediately
 	mm_forfeit_outcome(loser, sizeof(loser));  // capture the leaver (for cooldown)
 	G_bprint(PRINT_HIGH, "%s\n",
 			redtext("Match aborted - no result, no Elo change."));
@@ -3237,6 +3285,7 @@ void StartMatch(void)
 		mm_forfeit_cycles_reset();
 		mm_first_leaver[0] = 0;
 		mm_forfeit_active = false;   // never carry a stale pause into a new map
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
 		mm_forfeit_start_ms = 0;
 		mm_drop_correlated = false;
 		mm_proceed_reset();
