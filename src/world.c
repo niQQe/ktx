@@ -1289,14 +1289,17 @@ void FirstFrame(void)
 			cvar_fset("fraglimit", fl);
 		}
 
-		// Spawn the join-deadline ticker. If both matched players are not
-		// present within k_match_join_deadline seconds, the connected
-		// player(s) get a chat message and the server shuts down.
+		// Fresh pre-match clocks for this map (waiting budget + warmup budget),
+		// then spawn the join-deadline ticker. If the matched players are not all
+		// present before the waiting budget runs out, the connected player(s) get
+		// a chat message and the server shuts down. The budgets are per-map and
+		// shared by every pre-match ticker, so a leave/rejoin resumes them rather
+		// than handing out a new full-length countdown.
+		mm_prematch_clocks_reset();
 		jd = spawn();
 		jd->classname = "mm_join_deadline";
 		jd->think = (func_t) mm_join_deadline_think;
 		jd->s.v.nextthink = g_globalvars.time + 1;
-		jd->cnt2 = (int) bound(30, cvar("k_match_join_deadline"), 600);
 	}
 }
 
