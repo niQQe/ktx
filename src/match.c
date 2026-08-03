@@ -343,6 +343,11 @@ static void mm_series_team_frags(int *out_t1, int *out_t2)
 	*out_t2 = t2;
 }
 
+// qwleague: resolve a still-pending disconnect forfeit at match end (defined
+// after the forfeit helpers below). Called from EndMatch so the empty-server
+// teardown path can't post a resultless match that lets the abandoner dodge Elo.
+static void mm_resolve_pending_forfeit_on_end(void);
+
 void EndMatch(float skip_log)
 {
 	gedict_t *p;
@@ -369,6 +374,16 @@ void EndMatch(float skip_log)
 
 	match_over = 1;
 	k_berzerk = 0;
+
+	// qwleague: an abandoned matchmade match can reach EndMatch via the
+	// empty-server teardown (all players gone) BEFORE the technical-timeout
+	// deadline resolves the pending forfeit. Resolve it now — from who
+	// abandoned first — so the stats POST below carries the loss instead of a
+	// resultless upload that lets the abandoner escape without Elo change.
+	if (is_matchmade_server() && old_match_in_progress == 2)
+	{
+		mm_resolve_pending_forfeit_on_end();
+	}
 
 	remove_projectiles();
 
@@ -636,6 +651,70 @@ void EndMatch(float skip_log)
 	}
 }
 
+// Pre-match clocks. These are per-MAP BUDGETS, not per-ticker timers: leaving
+// and re-entering during warmup is free, but it must not RENEW the clock.
+// Each map load gets exactly one waiting budget and one warmup budget:
+//
+//  - mm_wait_left   (k_match_join_deadline, 300s) — total time spent waiting for
+//    a full roster, shared by the initial join-deadline ticker
+//    (mm_join_deadline_think) and the abandonment watchdog (mm_abandon_think).
+//    Drop out and come back as often as you like; the same 5:00 keeps draining,
+//    so a disconnect/reconnect loop can't stall the server forever.
+//  - mm_warmup_left (k_mm_warmup, 300s) — total warmup time. A player who leaves
+//    and returns RESUMES the remaining warmup (mm_prewar_think) instead of
+//    restarting it at full length.
+//
+// Before this, every ticker started a fresh full-length countdown on each
+// incarnation, so cycling connect/disconnect extended the pre-match phase
+// without bound. (And map 1's watchdog used a hardcoded 60s, which gave a player
+// who had already shown up LESS time to come back than one who never showed at
+// all — a router reboot during warmup became an abort plus an abandon cooldown.)
+static int mm_wait_left = 0;
+static int mm_warmup_left = 0;
+
+// Called from world.c on every matchmade map load: a NEW map (including each map
+// of a series) gets fresh clocks, a leave/rejoin within the same map does not.
+void mm_prematch_clocks_reset(void)
+{
+	mm_wait_left = (int) bound(30, cvar("k_match_join_deadline"), 600);
+	mm_warmup_left = (int) bound(10, cvar("k_mm_warmup"), 600);
+}
+
+// Forfeit helpers (defined further below) used by the series-aware no-show
+// handling in mm_join_deadline_think.
+static int mm_forfeit_outcome(char *loser, int loser_sz);
+static int mm_missing_tokens(char out[][64], int max_out);
+static void mm_set_forfeit_team_from_token(const char *tok);
+static const char *mm_player_token(gedict_t *p);
+void mm_notify_forfeit(void);
+
+// A rostered player who connected as SPECTATOR is invisible to the roster
+// checks (they scan players only) and would be counted "missing" — and
+// eventually forfeited while literally on the server. Deliberately NOT treated
+// as present (that would let a leaver sit in spec to force a no-penalty void);
+// instead the no-show/abandon tickers warn them to rejoin as a player.
+static void mm_warn_spectating_missing(void)
+{
+	char missing[16][64];
+	int n;
+	int i;
+	gedict_t *s;
+
+	n = mm_missing_tokens(missing, 16);
+	for (i = 0; i < n; i++)
+	{
+		for (s = world; (s = find_spc(s));)
+		{
+			if (streq(mm_player_token(s), missing[i]))
+			{
+				G_sprint(s, PRINT_HIGH, "%s\n",
+						redtext("You are connected as SPECTATOR - rejoin as a "
+								"player NOW or you will be forfeited."));
+			}
+		}
+	}
+}
+
 // Ticks once per second on a matchmade server until either:
 //  - 2 humans are present (entity removes itself; mm_maybe_auto_start handles the rest)
 //  - the join deadline expires (announces no-show in chat and triggers shutdown)
@@ -645,7 +724,7 @@ void mm_join_deadline_think(void)
 	int humans = 0;
 	int needed = (int) cvar("k_mm_players");
 	gedict_t *p;
-	int left = (int) self->cnt2;
+	int left = mm_wait_left;  // shared per-map waiting budget, see mm_prematch_clocks_reset
 
 	if (needed < 2)
 	{
@@ -676,27 +755,56 @@ void mm_join_deadline_think(void)
 
 	if (left <= 0)
 	{
-		// Deadline expired with only one (or zero) players. Tell whoever's
-		// here why the server is closing, then start the shutdown countdown.
+		// Deadline expired with only one (or zero) players.
 		gedict_t *sd;
+		char loser[64] = "";
 
-		G_bprint(PRINT_HIGH, "%s\n",
-				redtext("Opponent did not connect in time."));
-		G_bprint(PRINT_HIGH, "%s\n",
-				redtext("Server closing - no penalty for you."));
+		// Series-aware — mirrors mm_abandon_think. A fresh join-deadline ticker
+		// is spawned on EVERY map load (world.c FirstFrame), so it also runs at
+		// the start of a LATER series map. If a map is already decided
+		// (k_series_index > 0) and exactly ONE side is missing, voiding with "no
+		// penalty" would throw away the decided map AND let the player who
+		// abandoned an earlier map — and never came back for this one — dodge
+		// the loss. Instead, forfeit the remaining series to the present player.
+		if ((int) cvar("k_series_index") > 0
+				&& mm_forfeit_outcome(loser, sizeof(loser)) == 1)
+		{
+			mm_set_forfeit_team_from_token(loser);
+			cvar_set("k_match_forfeit_loser", loser);
+			G_bprint(PRINT_HIGH, "%s\n",
+					redtext("Opponent did not return for this map - forfeiting the "
+							"remaining series to the present player."));
+			mm_notify_forfeit();
+		}
+		else
+		{
+			// Nothing decided yet (map 1 / 0-0) or both sides gone — a genuine
+			// no-show, void with no Elo.
+			G_bprint(PRINT_HIGH, "%s\n",
+					redtext("Opponent did not connect in time."));
+			G_bprint(PRINT_HIGH, "%s\n",
+					redtext("Server closing - no penalty for you."));
+		}
 
 		sd = spawn();
 		sd->classname = "mm_shutdown";
 		sd->think = (func_t) mm_shutdown_think;
 		sd->s.v.nextthink = g_globalvars.time + 1;
-		sd->cnt2 = 10;  // shorter than the 15s post-match countdown — we
-		                // just need time for the chat message to land.
+		sd->cnt2 = 15;  // match the post-match flush window — the series-
+		                // forfeit POST above is async and must complete
+		                // before quit, not just the chat message.
 
 		ent_remove(self);
 		return;
 	}
 
-	self->cnt2 = left - 1;
+	// Nudge a rostered player idling in the spectator slots (every ~15s).
+	if (left % 15 == 0)
+	{
+		mm_warn_spectating_missing();
+	}
+
+	mm_wait_left = left - 1;
 	self->s.v.nextthink = g_globalvars.time + 1;
 }
 
@@ -1506,6 +1614,22 @@ qbool mm_token_allowed(const char *token)
 	return false;
 }
 
+// Authoritative match token for a player: prefer *mtoken, pinned as a
+// protected userinfo key at connect after validation (clients cannot change
+// *-keys), over the mutable client-set "qwleague_token" — a stray setinfo or
+// reconnect resend once mislabeled a row mid-series (match 336), and a leaver
+// could blank/forge the mutable key to dodge or transfer forfeit blame.
+static const char *mm_player_token(gedict_t *p)
+{
+	const char *tok = ezinfokey(p, "*mtoken");
+
+	if (!tok[0])
+	{
+		tok = ezinfokey(p, "qwleague_token");
+	}
+	return tok;
+}
+
 // Look up the locked display name for player `p` from the agent-supplied
 // `k_token_names` map, formatted as "<token>|<name>|<token>|<name>|...".
 // Pipe-delimited (not space) so handles containing spaces survive. Returns
@@ -1513,7 +1637,7 @@ qbool mm_token_allowed(const char *token)
 // registered name. Used to stop fakenicking on matchmade servers.
 qbool mm_forced_name(gedict_t *p, char *out, int out_size)
 {
-	char *my_token = ezinfokey(p, "qwleague_token");
+	const char *my_token = mm_player_token(p);
 	char *s = cvar_string("k_token_names");
 	char tok[64];
 	int i;
@@ -1557,6 +1681,31 @@ qbool mm_forced_name(gedict_t *p, char *out, int out_size)
 
 	out[0] = 0;
 	return false;
+}
+
+// The locked shirt/pants color for a matchmade player's assigned team:
+// red = 4, blue = 13. Returns -1 when no forcing applies (not a matchmade
+// server, spectator, bot, or a team outside the red/blue pair the brain
+// assigns). Used at connect (initial force) and in ClientUserInfoChanged
+// (reject client color changes).
+int mm_forced_color(gedict_t *p)
+{
+	char *team;
+
+	if (!is_matchmade_server() || p->isBot || p->ct == ctSpec)
+	{
+		return -1;
+	}
+	team = getteam(p);
+	if (streq(team, "red"))
+	{
+		return 4;
+	}
+	if (streq(team, "blue"))
+	{
+		return 13;
+	}
+	return -1;
 }
 
 // ─── Matchmade ruleset gate (best-effort, spoofable) ────────────────────────
@@ -1759,14 +1908,6 @@ static qbool mm_has_both_players(void)
 	return human_players >= 1 && total_players >= needed;
 }
 
-// Warmup (prewar) length once everyone's connected, before the real match
-// countdown. Players can move/shoot freely during this window.
-#define MM_PREWAR_SEC 15
-// How long an abandoned pre-match server (everyone arrived, then dropped below
-// the needed count) waits for players to return before it aborts the session
-// and shuts down — instead of lingering until the multi-hour orphan reaper.
-#define MM_ABANDON_SEC 60
-
 static int mm_human_count(void)
 {
 	int humans = 0;
@@ -1788,6 +1929,7 @@ static int mm_human_count(void)
 static void mm_arm_abandon(void)
 {
 	gedict_t *w;
+	int left;
 
 	if (!is_matchmade_server() || match_in_progress || match_over)
 	{
@@ -1801,13 +1943,41 @@ static void mm_arm_abandon(void)
 	w->classname = "mm_abandon";
 	w->think = (func_t) mm_abandon_think;
 	w->s.v.nextthink = g_globalvars.time + 1;
-	w->cnt2 = MM_ABANDON_SEC;
+	// Resumes the map's shared waiting budget — NOT a fresh countdown. If the
+	// budget is already spent the watchdog is still armed: it resolves the
+	// session (forfeit/void + shutdown) on its next tick, so the server never
+	// lingers waiting for the multi-hour orphan reaper.
+	left = mm_wait_left;
+	if (left <= 0)
+	{
+		G_bprint(PRINT_HIGH, "%s\n",
+				redtext("A player left during warmup - the wait time for this map "
+						"is used up, resolving now."));
+	}
+	else if ((int) cvar("k_series_index") > 0)
+	{
+		// Mid-series: a map is already decided, so the stakes are a forfeit.
+		G_bprint(PRINT_HIGH, "%s\n",
+				redtext(va("A player left during warmup - %d:%02d to reconnect "
+						"or they forfeit the series.", left / 60, left % 60)));
+	}
+	else
+	{
+		// Map 1, nothing decided: leaving and re-entering during warmup is free.
+		// Say so — the old wording ("60 seconds or the match is aborted") read
+		// as a punishment for using the break window as intended.
+		G_bprint(PRINT_HIGH, "%s\n",
+				redtext(va("A player left during warmup - %d:%02d to reconnect. "
+						"Warmup resumes where it left off if they return.",
+						left / 60, left % 60)));
+	}
 }
 
 // Warmup ticker. Spawned once everyone's connected. Players are unreadied (so
-// they can move/shoot/prewar) for MM_PREWAR_SEC, then we force-ready and start
-// the real countdown. Cancels itself if the roster drops (the abandon watchdog
-// then decides whether to wait for a return or shut down).
+// they can move/shoot/prewar) until the map's warmup budget (mm_warmup_left) runs
+// out, then we force-ready and start the real countdown. Cancels itself if the
+// roster drops — the budget stops draining and the abandon watchdog decides
+// whether to wait for a return or shut down, so warmup RESUMES on a rejoin.
 void mm_prewar_think(void)
 {
 	int needed = (int) cvar("k_mm_players");
@@ -1846,12 +2016,12 @@ void mm_prewar_think(void)
 				rdy++;
 			}
 		}
-		if (!(total > 0 && rdy >= total) && self->cnt2 > 0)
+		if (!(total > 0 && rdy >= total) && mm_warmup_left > 0)
 		{
-			int cs = (int) self->cnt2;
+			int cs = mm_warmup_left;
 			G_cp2all("WARMUP - type \"ready\"\n\n%d / %d ready\n\nstarts in %d:%02d",
 					rdy, total, cs / 60, cs % 60);
-			self->cnt2 -= 1;
+			mm_warmup_left -= 1;
 			self->s.v.nextthink = g_globalvars.time + 1;
 			return;
 		}
@@ -1874,11 +2044,8 @@ void mm_prewar_think(void)
 	ent_remove(self);
 }
 
-// Defined further down, but the series-aware abandonment watchdog below needs
-// them: forfeit-side resolution + the forfeit upload notifier.
-static int mm_forfeit_outcome(char *loser, int loser_sz);
-static void mm_set_forfeit_team_from_token(const char *tok);
-void mm_notify_forfeit(void);
+// (mm_forfeit_outcome / mm_set_forfeit_team_from_token / mm_notify_forfeit are
+// forward-declared earlier, near mm_join_deadline_think.)
 
 // Abandonment watchdog (see mm_arm_abandon). If players don't come back to the
 // needed count before the warmup/countdown grace expires, end the session and
@@ -1908,41 +2075,92 @@ void mm_abandon_think(void)
 	}
 	if (mm_human_count() >= needed)
 	{
-		ent_remove(self);  // everyone's back; mm_maybe_auto_start re-armed warmup
+		ent_remove(self);  // everyone's back; mm_maybe_auto_start resumed warmup
 		return;
 	}
-	if (self->cnt2 > 0)
+	if (mm_wait_left > 0)
 	{
-		self->cnt2 -= 1;
+		int left = mm_wait_left;
+
+		// Keep the present player informed — the wait must never look like a
+		// hang, and the consequence must be stated (session 414 fallout: the
+		// grace was invisible while the website still showed 5:00).
+		if ((left % 60 == 0) || (left == 30) || (left == 10))
+		{
+			if ((int) cvar("k_series_index") > 0)
+			{
+				G_bprint(PRINT_HIGH, "%s\n",
+						redtext(va("Waiting for missing player - %d:%02d until "
+								"the series is forfeited to the present team.",
+								left / 60, left % 60)));
+			}
+			else
+			{
+				G_bprint(PRINT_HIGH, "%s\n",
+						redtext(va("Waiting for missing player - %d:%02d to "
+								"reconnect, then the match is voided (no Elo).",
+								left / 60, left % 60)));
+			}
+		}
+		// Nudge a rostered player idling in the spectator slots (every ~15s).
+		if (left % 15 == 0)
+		{
+			mm_warn_spectating_missing();
+		}
+		mm_wait_left -= 1;
 		self->s.v.nextthink = g_globalvars.time + 1;
 		return;
 	}
 
-	if ((int) cvar("k_series_index") > 0
-			&& mm_forfeit_outcome(loser, sizeof(loser)) == 1)
 	{
-		// Mid-series, one side missing → forfeit the rest of the series to the
-		// present team instead of voiding it.
-		mm_set_forfeit_team_from_token(loser);
-		cvar_set("k_match_forfeit_loser", loser);
-		G_bprint(PRINT_HIGH, "%s\n",
-				redtext("A player abandoned mid-series - forfeiting the remaining maps "
-						"to the present team."));
-		mm_notify_forfeit();
-	}
-	else
-	{
-		G_bprint(PRINT_HIGH, "%s\n",
-				redtext("Players left before the match started - aborting, no Elo change."));
-		cvar_fset("k_match_aborted", 1);
-		mm_notify_aborted();
+		int outcome = mm_forfeit_outcome(loser, sizeof(loser));
+
+		if ((int) cvar("k_series_index") > 0 && outcome == 1)
+		{
+			// Mid-series, one side missing → forfeit the rest of the series to
+			// the present team instead of voiding it.
+			mm_set_forfeit_team_from_token(loser);
+			cvar_set("k_match_forfeit_loser", loser);
+			G_bprint(PRINT_HIGH, "%s\n",
+					redtext("A player abandoned mid-series - forfeiting the remaining maps "
+							"to the present team."));
+			mm_notify_forfeit();
+		}
+		else
+		{
+			// Map-1 warmup (nothing decided) or both sides gone → no-Elo void.
+			// Still NAME the abandoner when one side is missing: the backend
+			// applies the escalating abandon cooldown to them and re-queues
+			// only the innocent players. Without this, a griefer could ready,
+			// connect, idle out warmup and re-queue with full priority forever
+			// while each opponent pays the wait.
+			if (outcome == 1 && loser[0])
+			{
+				cvar_set("k_match_forfeit_loser", loser);
+			}
+			else
+			{
+				// Both sides gone / unresolvable: make sure a STALE loser from
+				// an earlier map's forfeit (cvars persist across map loads and
+				// StartMatch hasn't run yet during warmup) can't leak into the
+				// abort payload and cooldown the wrong player.
+				cvar_set("k_match_forfeit_loser", "");
+			}
+			G_bprint(PRINT_HIGH, "%s\n",
+					redtext("Players left before the match started - aborting, no Elo change."));
+			cvar_fset("k_match_aborted", 1);
+			mm_notify_aborted();
+		}
 	}
 
 	sd = spawn();
 	sd->classname = "mm_shutdown";
 	sd->think = (func_t) mm_shutdown_think;
 	sd->s.v.nextthink = g_globalvars.time + 1;
-	sd->cnt2 = 5;  // brief — let the abort/forfeit POST flush before quit
+	sd->cnt2 = 15;  // sv_web_postfile is async — same flush window as the
+	                // map-end stats upload. 5s lost a series forfeit to the
+	                // quit race (session 414): the payload file was written
+	                // but the POST never left the box.
 	ent_remove(self);
 }
 
@@ -1971,15 +2189,16 @@ void mm_maybe_auto_start(void)
 		return;
 	}
 
-	// Start the warmup window. Players stay unreadied (free to move/shoot) until
-	// it elapses, then mm_prewar_think readies everyone and starts the countdown.
+	// Start (or RESUME) the warmup window. Players stay unreadied (free to
+	// move/shoot) until the map's warmup budget elapses, then mm_prewar_think
+	// readies everyone and starts the countdown. After a leave/rejoin this picks
+	// up the remaining budget — it does not hand out a fresh full-length warmup.
 	{
-		int warm = (int) bound(10, cvar("k_mm_warmup"), 600);
+		int warm = mm_warmup_left;
 		gedict_t *pw = spawn();
 		pw->classname = "mm_prewar";
 		pw->think = (func_t) mm_prewar_think;
 		pw->s.v.nextthink = g_globalvars.time + 1;
-		pw->cnt2 = warm;
 		G_bprint(PRINT_HIGH, "%s\n",
 				redtext(va("All players connected - warmup. Type \"ready\"; the map starts "
 						"when everyone is ready, or automatically in %d:%02d.",
@@ -1992,14 +2211,90 @@ void mm_maybe_auto_start(void)
 static qbool mm_forfeit_active = false;
 static int mm_forfeit_deadline_ms = 0;
 static int mm_forfeit_announce_sec = 0;  // last announced 'seconds remaining'
-// How many disconnect technical-timeouts this match has granted. Each
-// disconnect pauses the match and gives a return window; reconnecting before
-// the deadline resumes. Without a cap, a losing player could disconnect/return
-// in a loop forever, freezing the clock so the match never ends (then dodge the
-// loss via the backend's orphan-abort). After this many cycles, a further
-// disconnect forfeits the offender immediately instead of granting a window.
+// Pause-clock value (PausedTic's duration_ms) at the moment this window armed.
+// The engine's pause clock is TOTAL time paused, not window time — a window
+// armed during an existing manual pause would otherwise have its return time
+// silently eaten by however long the pause had already run (80s of manual
+// pause + a drop = a 10s "90s window"), and the correlated-drop gap would be
+// measured from the pause start instead of the window start.
+static int mm_forfeit_start_ms = 0;
+// How many disconnect technical-timeouts each PLAYER (by token) has been
+// granted this map. Each disconnect pauses the match and gives a return
+// window; reconnecting before the deadline resumes. Without a cap, a losing
+// player could disconnect/return in a loop forever, freezing the clock so the
+// match never ends (then dodge the loss via the backend's orphan-abort). After
+// this many cycles, a further disconnect by THAT player forfeits them
+// immediately instead of granting a window. Tracked per token — a global
+// counter would let one flaky player consume the budget and get the NEXT
+// (first-time) dropper insta-forfeited for someone else's disconnects.
 #define MM_MAX_FORFEIT_CYCLES 3
-static int mm_forfeit_cycles = 0;
+static char mm_cycle_tok[16][64];
+static int mm_cycle_cnt[16];
+static int mm_cycle_n = 0;
+
+static int mm_forfeit_cycles_of(const char *tok)
+{
+	int i;
+
+	for (i = 0; i < mm_cycle_n; i++)
+	{
+		if (streq(mm_cycle_tok[i], tok))
+		{
+			return mm_cycle_cnt[i];
+		}
+	}
+	return 0;
+}
+
+static void mm_forfeit_cycles_bump(const char *tok)
+{
+	int i;
+
+	if (!tok[0])
+	{
+		return;
+	}
+	for (i = 0; i < mm_cycle_n; i++)
+	{
+		if (streq(mm_cycle_tok[i], tok))
+		{
+			mm_cycle_cnt[i]++;
+			return;
+		}
+	}
+	if (mm_cycle_n < (int) (sizeof(mm_cycle_cnt) / sizeof(mm_cycle_cnt[0])))
+	{
+		strlcpy(mm_cycle_tok[mm_cycle_n], tok, sizeof(mm_cycle_tok[0]));
+		mm_cycle_cnt[mm_cycle_n] = 1;
+		mm_cycle_n++;
+	}
+}
+
+static void mm_forfeit_cycles_reset(void)
+{
+	mm_cycle_n = 0;
+}
+
+// qwleague: token of the FIRST player to abandon the current live map. In a
+// 1on1 this is who loses if the match later ends with the roster unresolvable
+// — the abandoner must not be able to convert a decided-by-abandonment result
+// into a no-Elo abort by having the (innocent) opponent also leave the frozen
+// match. Cleared when the roster is fully restored (blip forgiven) and each
+// map in StartMatch.
+static char mm_first_leaver[64] = "";
+
+// Correlated-drop detection. When the SECOND player drops within 5s (real
+// time) of the first, the outage almost certainly hit both (server box /
+// upstream blip), so the both-missing case stays a no-fault abort instead of
+// blaming whichever client the engine happened to sweep first. Real time is
+// tracked via mm_paused_tic's duration_ms — game time is frozen during the
+// pause, so it can't measure this gap.
+#define MM_CORRELATED_DROP_MS 5000
+static qbool mm_drop_correlated = false;
+static int mm_last_pause_ms = 0;  // duration_ms as of the last PausedTic
+// Last technical-timeout centerprint we actually sent, so PausedTic (every
+// frame) only re-sends when the text changes — see mm_paused_tic.
+static char mm_paused_cp_last[192] = "";
 
 // Accessors so the pause/extend command (commands.c) can see and extend the
 // disconnect technical-timeout without exposing the statics.
@@ -2015,6 +2310,7 @@ void mm_extend_forfeit_deadline(int ms)
 		mm_forfeit_deadline_ms += ms;
 		// Re-arm milestone announcements so the new time is shown.
 		mm_forfeit_announce_sec = 0;
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
 	}
 }
 
@@ -2049,7 +2345,7 @@ static int mm_missing_tokens(char out[][64], int max_out)
 		present = false;
 		for (plr = world; (plr = find_plr(plr));)
 		{
-			if (streq(ezinfokey(plr, "qwleague_token"), tok))
+			if (streq(mm_player_token(plr), tok))
 			{
 				present = true;
 				break;
@@ -2154,7 +2450,31 @@ static int mm_forfeit_outcome(char *loser, int loser_sz)
 
 		if (red && blue)
 		{
-			return 2;  // both sides incomplete → abort
+			// Both sides incomplete. NOTE: production duels take THIS branch,
+			// not the no-team-map fallback below — the agent renders
+			// k_token_teams for every mode (spawn.py assigns team 1/2 to duel
+			// players too). Blindly aborting here was the loophole where a
+			// losing duellist quits and the opponent, staring at a frozen
+			// technical timeout, also leaves — voiding the match with no Elo.
+			// If we recorded who abandoned FIRST (and it wasn't a correlated
+			// infra drop), their side forfeits. Guarded on the first leaver
+			// actually being among the missing so a returned player is never
+			// blamed for others' absence.
+			if (mm_first_leaver[0] && !mm_drop_correlated)
+			{
+				for (i = 0; i < n; i++)
+				{
+					if (streq(missing[i], mm_first_leaver))
+					{
+						if (loser)
+						{
+							strlcpy(loser, mm_first_leaver, loser_sz);
+						}
+						return 1;
+					}
+				}
+			}
+			return 2;  // no liable first leaver → abort
 		}
 		if (red)
 		{
@@ -2175,12 +2495,36 @@ static int mm_forfeit_outcome(char *loser, int loser_sz)
 		return 2;  // missing tokens had no resolvable team → abort safely
 	}
 
-	// 1on1: no team mapping. One missing = forfeit, both missing = abort.
+	// 1on1: no team mapping. One missing = forfeit the missing player — a
+	// PRESENT player is never blamed, even when they abandoned earlier and
+	// returned (blaming someone standing on the server for a map their
+	// opponent is absent from is indefensible, and it would punish good-faith
+	// reconnects). The residual gambit — B quits, waits for A to leave the
+	// frozen match, then reconnects so A is the one missing — requires A to
+	// ignore the explicit "stay connected or YOU forfeit" warning printed
+	// during every technical timeout, and each such quit burns one of B's
+	// MM_MAX_FORFEIT_CYCLES.
 	if (n == 1)
 	{
 		if (loser)
 		{
 			strlcpy(loser, missing[0], loser_sz);
+		}
+		return 1;
+	}
+
+	// Both missing (n >= 2). Previously this aborted with no Elo — the loophole
+	// where a losing duellist quits and then the opponent, staring at a frozen
+	// technical-timeout, also leaves, voiding the match. If we recorded who
+	// abandoned FIRST, they forfeit; the opponent leaving a match that was
+	// already lost-by-abandonment cannot launder it into a no-fault abort.
+	// Exception: both dropped within seconds of each other — that's a shared
+	// outage, not an abandonment; keep the no-fault abort.
+	if (mm_first_leaver[0] && !mm_drop_correlated)
+	{
+		if (loser)
+		{
+			strlcpy(loser, mm_first_leaver, loser_sz);
 		}
 		return 1;
 	}
@@ -2221,6 +2565,61 @@ static void mm_set_forfeit_team_from_token(const char *tok)
 		t = 2;
 	}
 	cvar_fset("k_match_forfeit_team", t);
+}
+
+// qwleague: resolve a still-pending disconnect forfeit when EndMatch fires
+// without mm_paused_tic having run — the empty-server teardown ends the match
+// as soon as the last player leaves, before the technical-timeout deadline. If
+// the outcome is already decided (mm_paused_tic, the cycle cap, admin abort, or
+// a series abandon set the cvars) we leave it untouched. Otherwise we classify
+// the current roster exactly like mm_paused_tic's deadline branch so the stats
+// POST carries the forfeit/abort — a match that emptied out mid-play can no
+// longer post a resultless upload that dodges Elo.
+static void mm_resolve_pending_forfeit_on_end(void)
+{
+	char loser[64] = "";
+	int outcome;
+
+	// ONLY the empty-server teardown path. With anyone still connected this
+	// EndMatch is either a natural end (possibly after a unanimous "proceed"
+	// vote played the map out short-handed — stamping the absent player would
+	// override a legitimately earned result) or an operator shutdown
+	// (G_ShutDown → EndMatch), which must stay resultless rather than blame
+	// whoever happened to be mid-reconnect.
+	if (CountPlayers() != 0)
+	{
+		return;
+	}
+
+	if (cvar("k_match_aborted") || cvar_string("k_match_forfeit_loser")[0])
+	{
+		return;  // already resolved elsewhere — don't override
+	}
+
+	outcome = mm_forfeit_outcome(loser, sizeof(loser));
+	if (outcome == 0)
+	{
+		return;  // everyone present — a natural (frag/time) end, nothing to forfeit
+	}
+
+	if (outcome == 1)
+	{
+		cvar_set("k_match_forfeit_loser", loser);
+		if (mm_in_abort_window())
+		{
+			// Map 1, within the no-fault grace: void with no Elo, but the named
+			// leaver still takes the backend abandon cooldown.
+			cvar_fset("k_match_aborted", 1);
+		}
+		else
+		{
+			mm_set_forfeit_team_from_token(loser);
+		}
+	}
+	else
+	{
+		cvar_fset("k_match_aborted", 1);  // unresolvable — abort, no Elo
+	}
 }
 
 // Vote-to-proceed: present members of the short-handed team may resume the map a
@@ -2270,8 +2669,11 @@ void mm_paused_tic(int duration_ms)
 	if (match_over || !match_in_progress)
 	{
 		mm_forfeit_active = false;
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
 		return;
 	}
+
+	mm_last_pause_ms = duration_ms;  // real time elapsed in this pause
 
 	left_ms = mm_forfeit_deadline_ms - duration_ms;
 	left_sec = left_ms > 0 ? (left_ms + 999) / 1000 : 0;
@@ -2281,7 +2683,14 @@ void mm_paused_tic(int duration_ms)
 	if (outcome == 0)
 	{
 		// Everyone returned — schedule the engine's standard 3s unpause grace.
+		// The roster is complete again, so the recovered blip is forgiven:
+		// clear the first-leaver record. Without this, a player whose wifi
+		// blipped at 2:00 would remain "first leaver" for the whole map and
+		// eat the blame if the OPPONENT later abandons and both end up gone.
 		mm_forfeit_active = false;
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
+		mm_first_leaver[0] = 0;
+		mm_drop_correlated = false;
 		G_bprint(PRINT_HIGH, "%s\n",
 				redtext("All players present - resuming in 3 seconds."));
 		when_to_unpause = pauseduration + 3000;
@@ -2293,6 +2702,7 @@ void mm_paused_tic(int duration_ms)
 		// Deadline expired. Resolve based on who's missing. Leave the engine
 		// paused — EndMatch fires now anyway and stats POST is unaffected.
 		mm_forfeit_active = false;
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
 		if (outcome == 1)
 		{
 			if (mm_in_abort_window())
@@ -2333,42 +2743,66 @@ void mm_paused_tic(int duration_ms)
 	// player) is offered FIRST while the match still has extends left — without
 	// advertising it, players don't know they can wait and the timeout silently
 	// auto-resolves (the original bug: nobody knew to type it).
-	if (outcome == 1)
+	//
+	// ONLY when the text actually changes (i.e. once a second). A centerprint is a
+	// RELIABLE message and PausedTic runs EVERY FRAME — at maxfps 77 the old
+	// unconditional print queued ~77 reliable messages per second per client.
+	// mvdsv's netchan cannot flush that, its back buffers fill, and the ENGINE
+	// DROPS the client: "WARNING: MAX_BACK_BUFFERS for X" / "X overflowed". That
+	// is what happened in match 589 (2026-07-27) — 11s into a technical timeout
+	// the server dropped squeeze and then G-Flip, and mm_handle_disconnect then
+	// processed them as players who "also disconnected", feeding correlated-drop
+	// and forfeit attribution. The server was blaming players for its own flood.
+	// (Vanilla PausedTic in commands.c has always throttled with `prevtime`.)
 	{
-		qbool team = (int) cvar("k_mm_players") > 2;  // proceed only in team modes
-		qbool can_extend = (mm_extends_used < MAX_MATCH_EXTENDS);
-		qbool can_abort = mm_in_abort_window();
-		const char *label = can_abort ? "auto-abort" : "map forfeit";
-		char hint[96];
+		char cp[192];
 
-		hint[0] = 0;
-		if (can_extend)
+		if (outcome == 1)
 		{
-			strlcat(hint, "extend", sizeof(hint));
-		}
-		if (team)
-		{
-			if (hint[0]) { strlcat(hint, " / ", sizeof(hint)); }
-			strlcat(hint, "proceed", sizeof(hint));
-		}
-		if (can_abort)
-		{
-			if (hint[0]) { strlcat(hint, " / ", sizeof(hint)); }
-			strlcat(hint, "abort", sizeof(hint));
-		}
+			qbool team = (int) cvar("k_mm_players") > 2;  // proceed only in team modes
+			qbool can_extend = (mm_extends_used < MAX_MATCH_EXTENDS);
+			qbool can_abort = mm_in_abort_window();
+			const char *label = can_abort ? "auto-abort" : "map forfeit";
+			char hint[96];
 
-		if (hint[0])
-		{
-			G_cp2all("TECHNICAL TIMEOUT\n\n%s in %d\n\ntype: %s", label, left_sec, hint);
+			hint[0] = 0;
+			if (can_extend)
+			{
+				strlcat(hint, "extend", sizeof(hint));
+			}
+			if (team)
+			{
+				if (hint[0]) { strlcat(hint, " / ", sizeof(hint)); }
+				strlcat(hint, "proceed", sizeof(hint));
+			}
+			if (can_abort)
+			{
+				if (hint[0]) { strlcat(hint, " / ", sizeof(hint)); }
+				strlcat(hint, "abort", sizeof(hint));
+			}
+
+			if (hint[0])
+			{
+				snprintf(cp, sizeof(cp), "TECHNICAL TIMEOUT\n\n%s in %d\n\ntype: %s",
+						label, left_sec, hint);
+			}
+			else
+			{
+				snprintf(cp, sizeof(cp), "TECHNICAL TIMEOUT\n\n%s in %d",
+						label, left_sec);
+			}
 		}
 		else
 		{
-			G_cp2all("TECHNICAL TIMEOUT\n\n%s in %d", label, left_sec);
+			snprintf(cp, sizeof(cp), "TECHNICAL TIMEOUT\n\nIncomplete - abort in %d",
+					left_sec);
 		}
-	}
-	else
-	{
-		G_cp2all("TECHNICAL TIMEOUT\n\nIncomplete - abort in %d", left_sec);
+
+		if (!streq(cp, mm_paused_cp_last))
+		{
+			G_cp2all("%s", cp);
+			strlcpy(mm_paused_cp_last, cp, sizeof(mm_paused_cp_last));
+		}
 	}
 
 	// Print to chat at milestones. Surface `extend` here too so it survives in
@@ -2429,22 +2863,44 @@ void mm_handle_disconnect(void)
 
 	if (match_in_progress == 2 && self->ct == ctPlayer)
 	{
+		// Remember who abandoned the live map first. This is the loser of record
+		// if the match later ends unresolvable (e.g. the opponent also leaves).
+		// Cleared when the roster is fully restored, and by StartMatch. Admin
+		// kicks don't count — removed is not abandoned (idle kicks do count:
+		// they go through stuffcmd-disconnect without the flag, and AFK on a
+		// matchmade server IS abandonment).
+		if (!mm_first_leaver[0] && !self->k_was_kicked)
+		{
+			strlcpy(mm_first_leaver, mm_player_token(self),
+					sizeof(mm_first_leaver));
+		}
+
 		if (mm_forfeit_active)
 		{
+			// Second player gone within seconds of the first → treat the
+			// outage as shared (infra), not as one side abandoning: the
+			// both-missing resolution stays a no-fault abort. Measured from
+			// the WINDOW start, not the pause start — they differ when the
+			// window armed during an existing manual pause.
+			if (mm_last_pause_ms - mm_forfeit_start_ms < MM_CORRELATED_DROP_MS)
+			{
+				mm_drop_correlated = true;
+			}
 			G_bprint(PRINT_HIGH, "%s %s\n",
 					self->netname,
 					redtext("also disconnected - technical timeout running."));
 			return;
 		}
 
-		// Anti-stall: a player who has already used up the allowed number of
+		// Anti-stall: a player who has already used up THEIR allowed number of
 		// disconnect windows gets no new one — they forfeit immediately. This
 		// stops the disconnect/reconnect loop that would otherwise freeze the
-		// clock indefinitely and let a loser dodge the result.
-		if (mm_forfeit_cycles >= MM_MAX_FORFEIT_CYCLES)
+		// clock indefinitely and let a loser dodge the result. Per-player: an
+		// opponent's burned windows never count against this player.
+		if (mm_forfeit_cycles_of(mm_player_token(self)) >= MM_MAX_FORFEIT_CYCLES)
 		{
 			char loser[64];
-			strlcpy(loser, ezinfokey(self, "qwleague_token"), sizeof(loser));
+			strlcpy(loser, mm_player_token(self), sizeof(loser));
 			if (mm_in_abort_window())
 			{
 				G_bprint(PRINT_HIGH, "%s %s\n", self->netname,
@@ -2474,37 +2930,74 @@ void mm_handle_disconnect(void)
 			EndMatch(0);
 			return;
 		}
-		mm_forfeit_cycles++;
+		mm_forfeit_cycles_bump(mm_player_token(self));
 		mm_proceed_reset();
 
-		G_bprint(PRINT_HIGH, "%s %s\n",
-				self->netname,
-				redtext("disconnected. Match paused - 90s for them to return."));
-		if ((int) cvar("k_mm_players") > 2)
 		{
-			G_bprint(PRINT_HIGH, "%s\n",
-					redtext("Your team can type \"proceed\" to play on short-handed."));
-		}
-		if (mm_in_abort_window())
-		{
-			G_bprint(PRINT_HIGH, "%s\n",
-					redtext("Early game: type \"abort\" to void it (no Elo) - auto-aborts if nobody returns."));
-		}
-		if (mm_extends_used < MAX_MATCH_EXTENDS)
-		{
-			G_bprint(PRINT_HIGH, "%s\n",
-					redtext(va("Type \"extend\" to wait +2:00 longer for them (%d available).",
-							MAX_MATCH_EXTENDS - mm_extends_used)));
-		}
+			int window_sec = (int) bound(30, cvar("k_match_forfeit_deadline"), 600);
+			extern int when_to_unpause;
+			extern int pauseduration;
 
-		// Pause the engine so the match clock stops and the remaining player
-		// can't gain frags. The forfeit countdown runs via PausedTic →
-		// mm_paused_tic, which the engine calls each frame in real time.
-		mm_forfeit_active = true;
-		mm_forfeit_deadline_ms =
-				(int) bound(30, cvar("k_match_forfeit_deadline"), 600) * 1000;
-		mm_forfeit_announce_sec = 0;
-		trap_setpause(1);
+			// One print, not five. Each G_bprint is a separate RELIABLE message to
+			// every client, and this block fires at the exact moment the engine
+			// gets paused — i.e. when the netchan is least able to flush. Same
+			// text, same "announce the commands at every state" behaviour, a fifth
+			// of the reliable pressure. See mm_paused_tic for the overflow this
+			// class of traffic caused in match 589.
+			{
+				char msg[512];
+
+				snprintf(msg, sizeof(msg),
+						"%s\n%s\n",
+						redtext(va("disconnected. Match paused - %d:%02d for them to return.",
+								window_sec / 60, window_sec % 60)),
+						redtext("Stay connected - the timeout resolves in your favor. "
+								"If you leave too, YOU can be forfeited."));
+				if ((int) cvar("k_mm_players") > 2)
+				{
+					strlcat(msg, redtext("Your team can type \"proceed\" to play on short-handed."),
+							sizeof(msg));
+					strlcat(msg, "\n", sizeof(msg));
+				}
+				if (mm_in_abort_window())
+				{
+					strlcat(msg, redtext("Early game: type \"abort\" to void it (no Elo) - auto-aborts if nobody returns."),
+							sizeof(msg));
+					strlcat(msg, "\n", sizeof(msg));
+				}
+				if (mm_extends_used < MAX_MATCH_EXTENDS)
+				{
+					strlcat(msg, redtext(va("Type \"extend\" to wait +2:00 longer for them (%d available).",
+									MAX_MATCH_EXTENDS - mm_extends_used)),
+							sizeof(msg));
+					strlcat(msg, "\n", sizeof(msg));
+				}
+				G_bprint(PRINT_HIGH, "%s %s", self->netname, msg);
+			}
+
+			// Pause the engine so the match clock stops and the remaining player
+			// can't gain frags. The forfeit countdown runs via PausedTic →
+			// mm_paused_tic, which the engine calls each frame in real time.
+			//
+			// The window is anchored at the CURRENT pause clock: if the server
+			// was already paused (manual pause) the engine's duration_ms keeps
+			// counting from that pause's start, and an unanchored deadline
+			// would be partly (or fully) consumed by pause time that predates
+			// the disconnect. And a pending 3s resume (from a recovered blip or
+			// an unpause request) must be cancelled — if it fired now, the
+			// engine would unpause mid-window, PausedTic would stop ticking,
+			// and the forfeit deadline would never resolve.
+			when_to_unpause = 0;
+			mm_forfeit_active = true;
+   mm_paused_cp_last[0] = 0;  // let the next window print immediately
+			mm_forfeit_start_ms = ((int) cvar("sv_paused") & 1) ? pauseduration : 0;
+			mm_forfeit_deadline_ms = mm_forfeit_start_ms + window_sec * 1000;
+			mm_forfeit_announce_sec = 0;
+   mm_paused_cp_last[0] = 0;  // let the next window print immediately
+			mm_last_pause_ms = mm_forfeit_start_ms;  // fresh window for correlated-drop timing
+			mm_drop_correlated = false;
+			trap_setpause(1);
+		}
 		return;
 	}
 
@@ -2547,7 +3040,7 @@ void PlayerProceed(void)
 		return;  // everyone's back; mm_paused_tic resumes
 	}
 	mm_token_team(missing[0], shorthanded, sizeof(shorthanded));
-	mytok = ezinfokey(self, "qwleague_token");
+	mytok = mm_player_token(self);
 	mm_token_team((char *) mytok, myteam, sizeof(myteam));
 	if (!shorthanded[0] || !streq(myteam, shorthanded))
 	{
@@ -2566,7 +3059,7 @@ void PlayerProceed(void)
 		{
 			continue;
 		}
-		strlcpy(ptok, ezinfokey(p, "qwleague_token"), sizeof(ptok));
+		strlcpy(ptok, mm_player_token(p), sizeof(ptok));
 		mm_token_team(ptok, pteam, sizeof(pteam));
 		if (!streq(pteam, shorthanded))
 		{
@@ -2583,6 +3076,7 @@ void PlayerProceed(void)
 	if (present > 0 && voted >= present)
 	{
 		mm_forfeit_active = false;
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
 		mm_proceed_reset();
 		G_bprint(PRINT_HIGH, "%s\n",
 				redtext("Team chose to proceed - resuming short-handed in 3 seconds."));
@@ -2608,6 +3102,7 @@ void PlayerMatchAbort(void)
 		return;
 	}
 	mm_forfeit_active = false;
+ mm_paused_cp_last[0] = 0;  // let the next window print immediately
 	mm_forfeit_outcome(loser, sizeof(loser));  // capture the leaver (for cooldown)
 	G_bprint(PRINT_HIGH, "%s\n",
 			redtext("Match aborted - no result, no Elo change."));
@@ -2643,7 +3138,7 @@ void mm_notify_connect(void)
 		return;
 	}
 
-	token = ezinfokey(self, "qwleague_token");
+	token = mm_player_token(self);
 	if (!token[0])
 	{
 		return;
@@ -2702,6 +3197,7 @@ void mm_notify_aborted(void)
 	const char *match_id = cvar_string("k_match_id");
 	const char *callback = cvar_string("sv_www_address");
 	const char *secret = cvar_string("k_qwleague_secret");
+	const char *loser = cvar_string("k_match_forfeit_loser");
 	char body[256];
 	fileHandle_t fh = 0;
 
@@ -2710,9 +3206,22 @@ void mm_notify_aborted(void)
 		return;
 	}
 
-	snprintf(body, sizeof(body),
-			"{\"match_id\":\"%s\",\"aborted\":1,\"secret\":\"%s\"}",
-			match_id, secret);
+	// Name the abandoner when known (k_match_forfeit_loser set by the caller):
+	// the backend then applies the escalating abandon cooldown to that player
+	// and re-queues only the innocent ones. Still a no-Elo void either way.
+	if (loser[0])
+	{
+		snprintf(body, sizeof(body),
+				"{\"match_id\":\"%s\",\"aborted\":1,\"forfeit_loser\":\"%s\","
+				"\"secret\":\"%s\"}",
+				match_id, loser, secret);
+	}
+	else
+	{
+		snprintf(body, sizeof(body),
+				"{\"match_id\":\"%s\",\"aborted\":1,\"secret\":\"%s\"}",
+				match_id, secret);
+	}
 
 	if (trap_FS_OpenFile("mm_abort.json", &fh, FS_WRITE_BIN) < 0)
 	{
@@ -2783,7 +3292,12 @@ void StartMatch(void)
 		cvar_set("k_match_forfeit_loser", "");
 		cvar_fset("k_match_forfeit_team", 0);
 		cvar_fset("k_match_aborted", 0);
-		mm_forfeit_cycles = 0;
+		mm_forfeit_cycles_reset();
+		mm_first_leaver[0] = 0;
+		mm_forfeit_active = false;   // never carry a stale pause into a new map
+  mm_paused_cp_last[0] = 0;  // let the next window print immediately
+		mm_forfeit_start_ms = 0;
+		mm_drop_correlated = false;
 		mm_proceed_reset();
 	}
 

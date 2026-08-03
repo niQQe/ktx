@@ -93,6 +93,7 @@ qbool DoKick(gedict_t *victim, gedict_t *kicker)
 		// hehe
 		G_sprint(kicker, 2, "Say \"bye\" and then type \"disconnect\" next time\n");
 
+		kicker->k_was_kicked = true;  // removed by admin action, not an abandon
 		stuffcmd(kicker, "disconnect\n");  // FIXME: stupid way
 
 		localcmd("addip %s ban +30\n", cl_ip(victim)); // BAN for 30 seconds
@@ -108,6 +109,7 @@ qbool DoKick(gedict_t *victim, gedict_t *kicker)
 
 		G_sprint(victim, 2, "You were kicked from the server\n");
 
+		victim->k_was_kicked = true;  // removed by admin action, not an abandon
 		stuffcmd(victim, "disconnect\n"); // FIXME: stupid way
 
 		localcmd("addip %s ban +30\n", cl_ip(victim)); // BAN for 30 seconds

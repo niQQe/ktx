@@ -1004,6 +1004,8 @@ typedef struct gedict_s
 // { kick mode
 	struct gedict_s *k_playertokick;		// player selected to be kicked
 	float k_kicking;						// if player is in kick mode
+	qbool k_was_kicked;						// qwleague: admin-kicked — removed, not abandoned;
+											// don't blame as the match's first leaver
 // }
 	float k_1spawn;							// NOT_SURE: used in kteams respawn code...
 	float k_accepted;						// NOT_SURE:
