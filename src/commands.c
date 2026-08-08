@@ -118,6 +118,7 @@ void ToggleInstagib(void);
 void ToggleLGC(void);
 void ToggleCGKickback(void);
 void ToggleToT(void);
+void ToggleDropMessage(void);
 void TogglePowerups(void);
 void TogglePuPickup(void);
 void ToggleQEnemy(void);
@@ -226,8 +227,6 @@ void ToggleVwep(void);
 void TogglePause(void);
 void MatchExtend(void);
 void ToggleArena(void);
-void ToggleToT(void);
-void ToggleDropMessage(void);
 
 void Spawn666Time(void);
 
@@ -364,6 +363,7 @@ const char CD_NODESC[] = "no desc";
 #define CD_PUPICKUP			"change powerups pickup policy"
 #define CD_ANTILAG			"toggle antilag"
 #define CD_DISCHARGE		"underwater discharges"
+#define CD_DROPMSG			"toggle drop pack message"
 #define CD_DM				"show deathmatch mode"
 #define CD_DMM1				"set deathmatch mode 1"
 #define CD_DMM2				"set deathmatch mode 2"
@@ -383,7 +383,6 @@ const char CD_NODESC[] = "no desc";
 #define CD_DROPQUAD			"drop quad when killed"
 #define CD_DROPRING			"drop ring when killed"
 #define CD_DROPPACK			"drop pack when killed"
-#define CD_DROPMSG			"toggle drop pack message"
 #define CD_SILENCE			"toggle spectator talk"
 #define CD_REPORT			"simple teamplay report"
 #define CD_RULES			"show game rules"
@@ -700,9 +699,9 @@ void redirect(void);
 
 cmd_t cmds[] =
 {
-	{ "race", 						ToggleRace, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_RACE },
-	{ "race_countdown_up",					DEF(RaceCountdownChange),			1,			CF_PLAYER | CF_SPC_ADMIN,												CD_R_COUNTDOWN_UP},
-	{ "race_countdown_down",				DEF(RaceCountdownChange),			-1,			CF_PLAYER | CF_SPC_ADMIN,												CD_R_COUNTDOWN_DOWN},
+	{ "race", 						ToggleRace, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_RACE },
+	{ "race_countdown_up",					DEF(RaceCountdownChange),			1,			CF_PLAYER | CF_SPC_ADMIN | CF_RULES,												CD_R_COUNTDOWN_UP},
+	{ "race_countdown_down",				DEF(RaceCountdownChange),			-1,			CF_PLAYER | CF_SPC_ADMIN | CF_RULES,												CD_R_COUNTDOWN_DOWN},
 	{ "cm", 						SelectMap, 						0, 			CF_BOTH | CF_MATCHLESS | CF_NOALIAS, 									CD_NODESC },
 	{ "mapslist_dl", 				mapslist_dl, 					0, 			CF_BOTH | CF_MATCHLESS | CF_PARAMS | CF_NOALIAS | CF_CONNECTION_FLOOD, 	CD_MAPSLIST_DL },
 	{ "cmdslist_dl", 				cmdslist_dl, 					0, 			CF_BOTH | CF_MATCHLESS | CF_PARAMS | CF_NOALIAS | CF_CONNECTION_FLOOD, 	CD_CMDSLIST_DL },
@@ -724,39 +723,39 @@ cmd_t cmds[] =
 	{ "whonot", 					PlayerStatusN, 					0, 			CF_BOTH, 																CD_WHONOT },
 	{ "list", 						ListWhoNot, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_LIST },
 	{ "whovote", 					ModStatusVote, 					0, 			CF_BOTH | CF_MATCHLESS, 												CD_WHOVOTE },
-	{ "spawn", 						ToggleRespawns, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_SPAWN },
-	{ "spawn_show", 				ToggleSpawnPoints, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_SPAWNPOINTS },
-	{ "spawnicide", 				ToggleSpawnicide, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_SPAWNICIDE },
-	{ "powerups", 					TogglePowerups, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_POWERUPS },
-	{ "powerups_pickup", 			TogglePuPickup, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_PUPICKUP },
-	{ "antilag", 					antilag, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_ANTILAG },
-	{ "discharge", 					ToggleDischarge, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DISCHARGE },
-	{ "dropmessage", 				ToggleDropMessage, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DROPMSG },
+	{ "spawn", 						ToggleRespawns, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_SPAWN },
+	{ "spawn_show", 				ToggleSpawnPoints, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_SPAWNPOINTS },
+	{ "spawnicide", 				ToggleSpawnicide, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_SPAWNICIDE },
+	{ "powerups", 					TogglePowerups, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_POWERUPS },
+	{ "powerups_pickup", 			TogglePuPickup, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_PUPICKUP },
+	{ "antilag", 					antilag, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_ANTILAG },
+	{ "discharge", 					ToggleDischarge, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DISCHARGE },
+	{ "dropmessage", 				ToggleDropMessage, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DROPMSG },
 	{ "dm", 						ShowDMM, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DM },
-	{ "dmm1", 						DEF(ChangeDM), 					1, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DMM1 },
-	{ "dmm2", 						DEF(ChangeDM), 					2, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DMM2 },
-	{ "dmm3", 						DEF(ChangeDM), 					3, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DMM3 },
-	{ "dmm4", 						DEF(ChangeDM), 					4, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DMM4 },
-	{ "dmm5", 						DEF(ChangeDM), 					5, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DMM5 },
-	{ "tp", 						ChangeTP, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_TP },
-	{ "timedown1", 					DEF(TimeDown), 					1.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIMEDOWN1 },
-	{ "timeup1", 					DEF(TimeUp), 					1.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIMEUP1 },
-	{ "timedown", 					DEF(TimeDown), 					5.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIMEDOWN },
-	{ "timeup", 					DEF(TimeUp), 					5.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIMEUP },
-	{ "fallbunny", 					ToggleFallBunny, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FALLBUNNY },
-	{ "fragsdown", 					FragsDown, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FRAGSDOWN },
-	{ "fragsup", 					FragsUp, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FRAGSUP },
-	{ "killquad", 					killquad, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_KILLQUAD },
+	{ "dmm1", 						DEF(ChangeDM), 					1, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DMM1 },
+	{ "dmm2", 						DEF(ChangeDM), 					2, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DMM2 },
+	{ "dmm3", 						DEF(ChangeDM), 					3, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DMM3 },
+	{ "dmm4", 						DEF(ChangeDM), 					4, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DMM4 },
+	{ "dmm5", 						DEF(ChangeDM), 					5, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DMM5 },
+	{ "tp", 						ChangeTP, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TP },
+	{ "timedown1", 					DEF(TimeDown), 					1.0f, 		CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TIMEDOWN1 },
+	{ "timeup1", 					DEF(TimeUp), 					1.0f, 		CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TIMEUP1 },
+	{ "timedown", 					DEF(TimeDown), 					5.0f, 		CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TIMEDOWN },
+	{ "timeup", 					DEF(TimeUp), 					5.0f, 		CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TIMEUP },
+	{ "fallbunny", 					ToggleFallBunny, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_FALLBUNNY },
+	{ "fragsdown", 					FragsDown, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_FRAGSDOWN },
+	{ "fragsup", 					FragsUp, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_FRAGSUP },
+	{ "killquad", 					killquad, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_KILLQUAD },
 	// qqshka: Pointless to have it, XonX command will turn it off anyway.
 //	{ "bloodfest", 					bloodfest, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_BLOODFEST },
-	{ "dropquad", 					ToggleDropQuad, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DROPQUAD },
-	{ "dropring", 					ToggleDropRing, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DROPRING },
-	{ "droppack", 					ToggleDropPack, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DROPPACK },
+	{ "dropquad", 					ToggleDropQuad, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DROPQUAD },
+	{ "dropring", 					ToggleDropRing, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DROPRING },
+	{ "droppack", 					ToggleDropPack, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DROPPACK },
 
-	{ "silence", 					ToggleSpecTalk, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_SILENCE },
+	{ "silence", 					ToggleSpecTalk, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_SILENCE },
 	{ "report", 					ReportMe, 						0, 			CF_PLAYER, 																CD_REPORT },
 	{ "rules", 						ShowRules, 						0, 			CF_PLAYER | CF_MATCHLESS, 												CD_RULES },
-	{ "lockmode", 					ChangeLock, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_LOCKMODE },
+	{ "lockmode", 					ChangeLock, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_LOCKMODE },
 	{ "maps", 						ShowMaps, 						0, 			CF_BOTH | CF_MATCHLESS | CF_PARAMS, 									CD_MAPS },
 	{ "admin", 						ReqAdmin, 						0, 			CF_BOTH | CF_MATCHLESS | CF_PARAMS, 									CD_ADMIN },
 	{ "forcestart", 				AdminForceStart, 				0, 			CF_BOTH_ADMIN, 															CD_FORCESTART },
@@ -765,18 +764,18 @@ cmd_t cmds[] =
 	{ "pickup", 					VotePickup, 					0, 			CF_PLAYER, 																CD_PICKUP },
 	{ "prewar", 					TogglePreWar, 					0, 			CF_BOTH_ADMIN, 															CD_PREWAR },
 	{ "lockmap", 					ToggleMapLock, 					0, 			CF_BOTH_ADMIN, 															CD_LOCKMAP },
-	{ "speed", 						ToggleSpeed, 					0, 			CF_PLAYER, 																CD_SPEED },
-	{ "fairpacks", 					ToggleFairPacks, 				0, 			CF_PLAYER, 																CD_FAIRPACKS },
+	{ "speed", 						ToggleSpeed, 					0, 			CF_PLAYER | CF_RULES, 																CD_SPEED },
+	{ "fairpacks", 					ToggleFairPacks, 				0, 			CF_PLAYER | CF_RULES, 																CD_FAIRPACKS },
 	{ "sct_oct", 					ShowCharsetTableOctal, 			0, 			CF_BOTH, 																CD_CTOCT },
 	{ "sct_hex", 					ShowCharsetTableHexa, 			0, 			CF_BOTH, 																CD_CTHEX },
 	{ "about", 						ShowVersion, 					0, 			CF_BOTH | CF_MATCHLESS, 												CD_ABOUT },
 	{ "shownick", 					ShowNick, 						0, 			CF_PLAYER | CF_PARAMS, 													CD_SHOWNICK },
-	{ "time5", 						DEF(TimeSet), 					5.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIME5 },
-	{ "time10", 					DEF(TimeSet), 					10.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIME10 },
-	{ "time15", 					DEF(TimeSet), 					15.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIME15 },
-	{ "time20", 					DEF(TimeSet), 					20.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIME20 },
-	{ "time25", 					DEF(TimeSet), 					25.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIME25 },
-	{ "time30", 					DEF(TimeSet), 					30.0f, 		CF_PLAYER | CF_SPC_ADMIN, 												CD_TIME30 },
+	{ "time5", 						DEF(TimeSet), 					5.0f, 		CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TIME5 },
+	{ "time10", 					DEF(TimeSet), 					10.0f, 		CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TIME10 },
+	{ "time15", 					DEF(TimeSet), 					15.0f, 		CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TIME15 },
+	{ "time20", 					DEF(TimeSet), 					20.0f, 		CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TIME20 },
+	{ "time25", 					DEF(TimeSet), 					25.0f, 		CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TIME25 },
+	{ "time30", 					DEF(TimeSet), 					30.0f, 		CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TIME30 },
 
 	{ "ksound1", 					DEF(TeamSay), 					1, 			CF_PLAYER, 																CD_KSOUND1 },
 	{ "ksound2", 					DEF(TeamSay), 					2, 			CF_PLAYER, 																CD_KSOUND2 },
@@ -792,66 +791,66 @@ cmd_t cmds[] =
 	{ "victim", 					SendVictimMsg, 					0, 			CF_PLAYER | CF_MATCHLESS, 												CD_VICTIM },
 	{ "newcomer", 					SendNewcomerMsg, 				0, 			CF_BOTH | CF_MATCHLESS, 												CD_NEWCOMER },
 
-	{ "qlag", 						ToggleQLag, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_QLAG },
-	{ "qenemy", 					ToggleQEnemy, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_QENEMY },
-	{ "qpoint", 					ToggleQPoint, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_QPOINT },
+	{ "qlag", 						ToggleQLag, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_QLAG },
+	{ "qenemy", 					ToggleQEnemy, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_QENEMY },
+	{ "qpoint", 					ToggleQPoint, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_QPOINT },
 	/* new FDP bits https://www.quakeworld.nu/wiki/FPD
-	{ "skinforce", 					ToggleSkinForcing, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_SFORCING },
-	{ "colorforce", 				ToggleColorForcing, 			0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_CFORCING },
-	{ "pitchsl", 					TogglePitchSpeedLimit, 			0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_PITCHSP },
-	{ "yawsl", 						ToggleYawSpeedLimit, 			0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_YAWSP },
+	{ "skinforce", 					ToggleSkinForcing, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_SFORCING },
+	{ "colorforce", 				ToggleColorForcing, 			0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_CFORCING },
+	{ "pitchsl", 					TogglePitchSpeedLimit, 			0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_PITCHSP },
+	{ "yawsl", 						ToggleYawSpeedLimit, 			0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_YAWSP },
 	*/
 
 	{ "kick", 						AdminKick, 						0,			CF_BOTH_ADMIN/* FIXME: interference with ezq server kick command | CF_PARAMS */, CD_KICK },
 	{ "mkick", 						m_kick, 						0, 			CF_BOTH_ADMIN | CF_PARAMS, 												CD_MKICK },
 	{ "y", 							YesKick, 						0, 			CF_BOTH_ADMIN, 															CD_Y },
 	{ "n", 							DontKick, 						0, 			CF_BOTH_ADMIN, 															CD_N },
-	{ "overtime", 					ChangeOvertime, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_OVERTIME },
-	{ "overtimeup", 				ChangeOvertimeUp, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_OVERTIMEUP },
+	{ "overtime", 					ChangeOvertime, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_OVERTIME },
+	{ "overtimeup", 				ChangeOvertimeUp, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_OVERTIMEUP },
 	{ "elect", 						VoteAdmin, 						0, 			CF_BOTH | CF_MATCHLESS, 												CD_ELECT },
 	{ "yes", 						VoteYes, 						0, 			CF_PLAYER | CF_MATCHLESS, 												CD_YES },
 	{ "no", 						VoteNo, 						0, 			CF_PLAYER | CF_MATCHLESS, 												CD_NO },
 	{ "captain", 					VoteCaptain, 					0, 			CF_PLAYER, 																CD_CAPTAIN },
 	{ "coach", 						VoteCoach, 						0, 			CF_SPECTATOR, 															CD_COACH },
 	{ "suggestcolor", 					SuggestColorVote,					0, 			CF_PLAYER | CF_PARAMS, 															CD_SUGGESTCOLOR },
-	{ "freeze", 					ToggleFreeze, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FREEZE },
-	{ "rpickup", 					RandomPickup, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_RPICKUP },
+	{ "freeze", 					ToggleFreeze, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_FREEZE },
+	{ "rpickup", 					RandomPickup, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_RPICKUP },
 
-	{ "1on1", 						DEF(UserMode), 					1, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_1ON1 },
-	{ "2on2", 						DEF(UserMode), 					2, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_2ON2 },
-	{ "3on3", 						DEF(UserMode), 					3, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_3ON3 },
-	{ "4on4", 						DEF(UserMode), 					4, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_4ON4 },
-	{ "10on10", 					DEF(UserMode), 					5, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS,									CD_10ON10 },
-	{ "ffa", 						DEF(UserMode), 					6, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_FFA },
-	{ "ctf", 						DEF(UserMode), 					7, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_CTF },
-	{ "hoonymode", 					DEF(UserMode), 					8, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_1ON1HM },
-	{ "blitz2v2", 					DEF(UserMode), 					9, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_2ON2BLITZ },
-	{ "blitz4v4", 					DEF(UserMode), 					10, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_4ON4BLITZ },
-	{ "2on2on2", 					DEF(UserMode), 					11, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_2ON2ON2 },
-	{ "3on3on3", 					DEF(UserMode), 					12, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_3ON3ON3 },
-	{ "4on4on4", 					DEF(UserMode), 					13, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_4ON4ON4 },
-	{ "XonX", 						DEF(UserMode), 					14, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_XONX },
-	{ "wipeout", 					DEF(UserMode), 					15, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_WIPEOUT },
-	{ "carena", 					DEF(UserMode), 					16, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_CARENA },
-	{ "tot", 					DEF(UserMode), 					17, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_TOT },
+	{ "1on1", 						DEF(UserMode), 					1, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_1ON1 },
+	{ "2on2", 						DEF(UserMode), 					2, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_2ON2 },
+	{ "3on3", 						DEF(UserMode), 					3, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_3ON3 },
+	{ "4on4", 						DEF(UserMode), 					4, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_4ON4 },
+	{ "10on10", 					DEF(UserMode), 					5, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES,									CD_10ON10 },
+	{ "ffa", 						DEF(UserMode), 					6, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_FFA },
+	{ "ctf", 						DEF(UserMode), 					7, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_CTF },
+	{ "hoonymode", 					DEF(UserMode), 					8, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_1ON1HM },
+	{ "blitz2v2", 					DEF(UserMode), 					9, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_2ON2BLITZ },
+	{ "blitz4v4", 					DEF(UserMode), 					10, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_4ON4BLITZ },
+	{ "2on2on2", 					DEF(UserMode), 					11, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_2ON2ON2 },
+	{ "3on3on3", 					DEF(UserMode), 					12, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_3ON3ON3 },
+	{ "4on4on4", 					DEF(UserMode), 					13, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_4ON4ON4 },
+	{ "XonX", 						DEF(UserMode), 					14, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_XONX },
+	{ "wipeout", 					DEF(UserMode), 					15, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_WIPEOUT },
+	{ "carena", 					DEF(UserMode), 					16, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_CARENA },
+	{ "tot", 					DEF(UserMode), 					17, 		CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_TOT },
 
-	{ "practice", 					TogglePractice, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_PRACTICE },
+	{ "practice", 					TogglePractice, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_PRACTICE },
 	{ "wp_reset", 					Wp_Reset, 						0, 			CF_PLAYER, 																CD_WP_RESET },
 	{ "+wp_stats", 					DEF(Wp_Stats), 					2, 			CF_BOTH | CF_MATCHLESS, 												CD_PLS_WP_STATS },
 	{ "-wp_stats", 					DEF(Wp_Stats), 					1, 			CF_BOTH | CF_MATCHLESS, 												CD_MNS_WP_STATS },
 	{ "tkfjump", 					DEF(t_jump), 					1, 			CF_BOTH_ADMIN, 															CD_TKFJUMP },
 	{ "tkrjump", 					DEF(t_jump), 					2, 			CF_BOTH_ADMIN, 															CD_TKRJUMP },
 	{ "klist", 						klist, 							0, 			CF_BOTH | CF_MATCHLESS, 												CD_KLIST },
-	{ "toggleklist", 					toggleklist, 						0, 			CF_BOTH | CF_MATCHLESS, 												CD_TRACKLIST },
+	{ "toggleklist", 					toggleklist, 						0, 			CF_BOTH | CF_MATCHLESS | CF_RULES, 												CD_TRACKLIST },
 	{ "hdptoggle", 					hdptoggle, 						0, 			CF_BOTH_ADMIN, 															CD_HDPTOGGLE },
-	{ "handicap", 					handicap, 						0, 			CF_PLAYER | CF_PARAMS | CF_MATCHLESS, 									CD_HANDICAP },
-	{ "noweapon", 					noweapon, 						0, 			CF_PLAYER | CF_PARAMS | CF_SPC_ADMIN, 									CD_NOWEAPON },
-	{ "latejoin", 					latejoin, 						0, 			CF_PLAYER | CF_PARAMS | CF_SPC_ADMIN, 									CD_LATEJOIN },
+	{ "handicap", 					handicap, 						0, 			CF_PLAYER | CF_PARAMS | CF_MATCHLESS | CF_RULES, 									CD_HANDICAP },
+	{ "noweapon", 					noweapon, 						0, 			CF_PLAYER | CF_PARAMS | CF_SPC_ADMIN | CF_RULES, 									CD_NOWEAPON },
+	{ "latejoin", 					latejoin, 						0, 			CF_PLAYER | CF_PARAMS | CF_SPC_ADMIN | CF_RULES, 									CD_LATEJOIN },
 
 	{ "cam", 						ShowCamHelp, 					0, 			CF_SPECTATOR | CF_MATCHLESS, 											CD_CAM },
 
 	{ "tracklist", 					tracklist, 						0, 			CF_BOTH | CF_MATCHLESS, 												CD_TRACKLIST },
-	{ "toggletracklist", 					toggletracklist, 						0, 			CF_BOTH | CF_MATCHLESS, 												CD_TRACKLIST },
+	{ "toggletracklist", 					toggletracklist, 						0, 			CF_BOTH | CF_MATCHLESS | CF_RULES, 												CD_TRACKLIST },
 	{ "fpslist", 					fpslist, 						0, 			CF_BOTH | CF_MATCHLESS, 												CD_FPSLIST },
 
 	{ "fav1_add", 					DEF(favx_add), 					1, 			CF_SPECTATOR, 															CD_FAV1_ADD },
@@ -924,22 +923,22 @@ cmd_t cmds[] =
 	// { CTF commands
 	{ "tossrune", 					TossRune, 						0, 			CF_PLAYER | CF_MATCHLESS, 												CD_TOSSRUNE },
 	{ "tossflag", 					TossFlag, 						0, 			CF_PLAYER | CF_MATCHLESS, 												CD_TOSSFLAG },
-	{ "nohook", 					nohook, 						0, 			CF_PLAYER | CF_MATCHLESS, 											CD_NOHOOK },
-	{ "hook_smooth", 				hooksmooth, 					0, 			CF_PLAYER | CF_MATCHLESS, 											CD_HOOKSMOOTH },
-	{ "hook_fast", 					hookfast, 					0, 			CF_PLAYER | CF_MATCHLESS, 											CD_HOOKFAST },
-	{ "hook_classic", 				hookclassic, 					0, 			CF_PLAYER | CF_MATCHLESS, 											CD_HOOKCLASSIC },
-	{ "hook_crhook",				hookcrhook, 					0, 			CF_PLAYER | CF_MATCHLESS, 											CD_HOOKCRHOOK },
-	{ "norunes", 					norunes, 						0, 			CF_PLAYER | CF_MATCHLESS, 											CD_NORUNES },
-	{ "noga", 						noga, 							0, 			CF_BOTH_ADMIN | CF_MATCHLESS, 											CD_NOGA },
-	{ "mctf", 						mctf, 							0, 			CF_BOTH_ADMIN | CF_MATCHLESS, 											CD_MCTF },
+	{ "nohook", 					nohook, 						0, 			CF_PLAYER | CF_MATCHLESS | CF_RULES, 											CD_NOHOOK },
+	{ "hook_smooth", 				hooksmooth, 					0, 			CF_PLAYER | CF_MATCHLESS | CF_RULES, 											CD_HOOKSMOOTH },
+	{ "hook_fast", 					hookfast, 					0, 			CF_PLAYER | CF_MATCHLESS | CF_RULES, 											CD_HOOKFAST },
+	{ "hook_classic", 				hookclassic, 					0, 			CF_PLAYER | CF_MATCHLESS | CF_RULES, 											CD_HOOKCLASSIC },
+	{ "hook_crhook",				hookcrhook, 					0, 			CF_PLAYER | CF_MATCHLESS | CF_RULES, 											CD_HOOKCRHOOK },
+	{ "norunes", 					norunes, 						0, 			CF_PLAYER | CF_MATCHLESS | CF_RULES, 											CD_NORUNES },
+	{ "noga", 						noga, 							0, 			CF_BOTH_ADMIN | CF_MATCHLESS | CF_RULES, 											CD_NOGA },
+	{ "mctf", 						mctf, 							0, 			CF_BOTH_ADMIN | CF_MATCHLESS | CF_RULES, 											CD_MCTF },
 	{ "flagstatus", 				FlagStatus, 					0, 			CF_BOTH | CF_MATCHLESS, 												CD_FLAGSTATUS },
-	{ "swapall", 					SwapAll, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_SWAPALL },
+	{ "swapall", 					SwapAll, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_SWAPALL },
 
-	{ "ctfbasedspawn", 				CTFBasedSpawn, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_MATCHLESS, 								CD_CTFBASEDSPAWN },
+	{ "ctfbasedspawn", 				CTFBasedSpawn, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_MATCHLESS | CF_RULES, 								CD_CTFBASEDSPAWN },
 	// }
 	{ "motd", 						motd_show, 						0, 			CF_BOTH | CF_MATCHLESS, 												CD_MOTD },
 	{ "infolock", 					infolock, 						0, 			CF_BOTH_ADMIN, 															CD_INFOLOCK },
-	{ "infospec", 					infospec, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_INFOSPEC },
+	{ "infospec", 					infospec, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_INFOSPEC },
 	{ "moreinfo", 					moreinfo, 						0, 			CF_SPECTATOR | CF_MATCHLESS, 											CD_MOREINFO },
 	{ "s-p", 						dummy, 							0, 			CF_BOTH | CF_MATCHLESS | CF_PARAMS, 									CD_S_P },
 	{ "s-l", 						dummy, 							0, 			CF_BOTH | CF_MATCHLESS | CF_PARAMS, 									CD_S_L },
@@ -956,20 +955,20 @@ cmd_t cmds[] =
 	// }
 	{ "wreg", 						cmd_wreg, 						0, 			CF_BOTH | CF_MATCHLESS | CF_PARAMS, 									CD_WREG },
 	{ "kill", 						ClientKill, 					0, 			CF_PLAYER | CF_MATCHLESS, 												CD_KILL },
-	{ "midair", 					ToggleMidair, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_MIDAIR },
-	{ "midair_minheight", 			SetMidairMinHeight, 			0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_MIDAIR_MINHEIGHT },
-	{ "fresh", 						ToggleFreshTeams, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FRESHTEAMS },
-	{ "freshpacks", 				ToggleFreshPacks, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FRESHPACKS },
-	{ "freshguns", 					ToggleFreshGuns, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FRESHGUNS },
-	{ "freshtime", 					ToggleFreshTime, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_FRESHTIME },
-	{ "nosweep", 					ToggleNoSweep, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_NOSWEEP },
-	{ "instagib", 					ToggleInstagib, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_INSTAGIB },
-	{ "berzerk", 					ToggleBerzerk, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_BERZERK },
-	{ "lgcmode", 					ToggleLGC, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_LGC },
-	{ "totmode", 					ToggleToT, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_TOT },
-	{ "instagib_coilgun_kickback",	ToggleCGKickback, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_CG_KB },
+	{ "midair", 					ToggleMidair, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_MIDAIR },
+	{ "midair_minheight", 			SetMidairMinHeight, 			0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_MIDAIR_MINHEIGHT },
+	{ "fresh", 						ToggleFreshTeams, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_FRESHTEAMS },
+	{ "freshpacks", 				ToggleFreshPacks, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_FRESHPACKS },
+	{ "freshguns", 					ToggleFreshGuns, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_FRESHGUNS },
+	{ "freshtime", 					ToggleFreshTime, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_FRESHTIME },
+	{ "nosweep", 					ToggleNoSweep, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_NOSWEEP },
+	{ "instagib", 					ToggleInstagib, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_INSTAGIB },
+	{ "berzerk", 					ToggleBerzerk, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_BERZERK },
+	{ "lgcmode", 					ToggleLGC, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_LGC },
+	{ "totmode", 					ToggleToT, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TOT },
+	{ "instagib_coilgun_kickback",	ToggleCGKickback, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_CG_KB },
 	{ "time", 						sv_time, 						0, 			CF_BOTH | CF_MATCHLESS, 												CD_TIME },
-	{ "gren_mode", 					GrenadeMode, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_GREN_MODE },
+	{ "gren_mode", 					GrenadeMode, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_GREN_MODE },
 	{ "toggleready", 				ToggleReady, 					0, 			CF_BOTH | CF_MATCHLESS, 												CD_TOGGLEREADY },
 	{ "fp", 						DEF(fp_toggle), 				1, 			CF_BOTH_ADMIN, 															CD_FP },
 	{ "fp_spec", 					DEF(fp_toggle), 				2, 			CF_BOTH_ADMIN, 															CD_FP_SPEC },
@@ -979,7 +978,7 @@ cmd_t cmds[] =
 	// { RA
 	{ "ra_break", 					ra_break, 						0, 			CF_PLAYER, 																CD_RA_BREAK },
 	{ "ra_pos", 					ra_PrintPos, 					0, 			CF_PLAYER, 																CD_RA_POS },
-	{ "arena", 						ToggleArena, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_ARENA },
+	{ "arena", 						ToggleArena, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_ARENA },
 	// }
 	{ "force_spec", 				force_spec, 					0, 			CF_BOTH_ADMIN | CF_PARAMS, 												CD_FORCE_SPEC },
 	// { bans
@@ -987,15 +986,15 @@ cmd_t cmds[] =
 	{ "banip", 						redirect, 						0, 			CF_BOTH_ADMIN | CF_MATCHLESS | CF_PARAMS | CF_REDIRECT, 				CD_BANIP },
 	{ "banrem", 					redirect, 						0, 			CF_BOTH_ADMIN | CF_MATCHLESS | CF_PARAMS | CF_REDIRECT, 				CD_BANREM },
 	// }
-	{ "teleteam", 					teleteam, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_TELETEAM },
-	{ "upplayers", 					DEF(upplayers), 				1, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_UPPLAYERS },
-	{ "downplayers", 				DEF(downplayers), 				1, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DOWNPLAYERS },
-	{ "upspecs", 					DEF(upplayers), 				2, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_UPSPECS },
-	{ "downspecs", 					DEF(downplayers), 				2, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DOWNSPECS },
+	{ "teleteam", 					teleteam, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TELETEAM },
+	{ "upplayers", 					DEF(upplayers), 				1, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_UPPLAYERS },
+	{ "downplayers", 				DEF(downplayers), 				1, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DOWNPLAYERS },
+	{ "upspecs", 					DEF(upplayers), 				2, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_UPSPECS },
+	{ "downspecs", 					DEF(downplayers), 				2, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DOWNSPECS },
 	{ "iplist", 					iplist, 						0, 			CF_BOTH, 																CD_IPLIST },
-	{ "dmgfrags", 					dmgfrags, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DMGFRAGS },
-	{ "no_lg", 						no_lg, 							0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_NO_LG },
-	{ "no_gl", 						no_gl, 							0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_NO_GL },
+	{ "dmgfrags", 					dmgfrags, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DMGFRAGS },
+	{ "no_lg", 						no_lg, 							0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_NO_LG },
+	{ "no_gl", 						no_gl, 							0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_NO_GL },
 	// {
 	{ "trx_rec", 					mv_cmd_record, 					0, 			CF_PLAYER, 																CD_TRX_REC },
 	{ "trx_play", 					mv_cmd_playback, 				0, 			CF_PLAYER, 																CD_TRX_PLAY },
@@ -1005,11 +1004,11 @@ cmd_t cmds[] =
 	{ "check", 						fcheck, 						0, 			CF_BOTH | CF_PARAMS, 													CD_CHECK },
 	{ "next_map", 					PlayerBreak, 					0, 			CF_PLAYER | CF_MATCHLESS_ONLY, 											CD_NEXT_MAP },
 	{ "mapcycle", 					mapcycle, 						0, 			CF_BOTH | CF_MATCHLESS, 												CD_MAPCYCLE },
-	{ "yawnmode", 					ToggleYawnMode, 				0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_YAWNMODE },
-	{ "teleportcap", 				setTeleportCap, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_TELEPORTCAP },
-	{ "airstep", 					airstep, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_AIRSTEP },
-	{ "exclusive", 					ToggleExclusive, 				0, 			CF_BOTH_ADMIN, 															CD_EXCLUSIVE },
-	{ "vwep", 						ToggleVwep, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_VWEP },
+	{ "yawnmode", 					ToggleYawnMode, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_YAWNMODE },
+	{ "teleportcap", 				setTeleportCap, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_TELEPORTCAP },
+	{ "airstep", 					airstep, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_AIRSTEP },
+	{ "exclusive", 					ToggleExclusive, 				0, 			CF_BOTH_ADMIN | CF_RULES, 															CD_EXCLUSIVE },
+	{ "vwep", 						ToggleVwep, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_VWEP },
 	{ "pause", 						TogglePause, 					0, 			CF_PLAYER | CF_MATCHLESS | CF_SPC_ADMIN, 								CD_PAUSE },
 	{ "extend", 					MatchExtend, 					0, 			CF_PLAYER, 																"extend matchmade pause / technical timeout (+2:00)" },
 	// { RACE
@@ -1022,41 +1021,41 @@ cmd_t cmds[] =
 	{ "race_show_toptimes", 		display_scores, 				0, 			CF_BOTH, 																CD_RSCORES },
 	{ "race_show_record_details", 	display_record_details, 		0, 			CF_BOTH | CF_PARAMS, 													CD_RSCOREDETAIL },
 	{ "race_show_route", 			r_print, 						0, 			CF_BOTH, 																CD_R_PRINT },
-	{ "race_set_start", 			DEF(r_Xset), 					1, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_R_SSET },
-	{ "race_set_finish", 			DEF(r_Xset), 					3, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_R_ESET },
-	{ "race_set_checkpoint", 		DEF(r_Xset), 					2, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_R_CSET },
-	{ "race_del_checkpoint", 		r_cdel, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_R_CDEL },
-	{ "race_set_timeout", 			r_timeout, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_RTIMEOUT },
-	{ "race_set_falsestart", 		r_falsestart, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_RFALSESTART },
-	{ "race_set_weapon_mode", 		r_mode, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_RMODE },
-	{ "race_route_switch", 			r_route, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_R_ROUTE },
-	{ "race_route_clear", 			r_clear_route, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_C_ROUTE },
+	{ "race_set_start", 			DEF(r_Xset), 					1, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_R_SSET },
+	{ "race_set_finish", 			DEF(r_Xset), 					3, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_R_ESET },
+	{ "race_set_checkpoint", 		DEF(r_Xset), 					2, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_R_CSET },
+	{ "race_del_checkpoint", 		r_cdel, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_R_CDEL },
+	{ "race_set_timeout", 			r_timeout, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_RTIMEOUT },
+	{ "race_set_falsestart", 		r_falsestart, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_RFALSESTART },
+	{ "race_set_weapon_mode", 		r_mode, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_RMODE },
+	{ "race_route_switch", 			r_route, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_R_ROUTE },
+	{ "race_route_clear", 			r_clear_route, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_C_ROUTE },
 	{ "race_chasecam", 				DEF(r_changefollowstatus), 		3, 			CF_PLAYER, 																CD_RFTOGGLE },
 	{ "race_chasecam_view", 		race_chasecam_change, 			0, 			CF_PLAYER, 																CD_RCHASECAM },
 	{ "race_chasecam_freelook", 	race_chasecam_freelook_change, 	0, 			CF_PLAYER, 																CD_RCHASECAMFL },
 	{ "race_dl_record_demo", 		race_download_record_demo, 		0, 			CF_BOTH | CF_PARAMS, 													CD_RDLDEMO },
-	{ "race_pacemaker", 			race_pacemaker, 				0, 			CF_PLAYER | CF_PARAMS, 													CD_RPACEMAKER },
-	{ "race_simultaneous", 			race_simultaneous_toggle, 		0, 			CF_PLAYER, 																CD_RSIMULMODE },
-	{ "race_match", 				race_match_toggle, 				0, 			CF_PLAYER, 																CD_RMATCHMODE },
-	{ "race_scoring", 				race_scoring_system_toggle, 	0, 			CF_PLAYER, 																CD_RSCORINGMODE },
+	{ "race_pacemaker", 			race_pacemaker, 				0, 			CF_PLAYER | CF_PARAMS | CF_RULES, 													CD_RPACEMAKER },
+	{ "race_simultaneous", 			race_simultaneous_toggle, 		0, 			CF_PLAYER | CF_RULES, 																CD_RSIMULMODE },
+	{ "race_match", 				race_match_toggle, 				0, 			CF_PLAYER | CF_RULES, 																CD_RMATCHMODE },
+	{ "race_scoring", 				race_scoring_system_toggle, 	0, 			CF_PLAYER | CF_RULES, 																CD_RSCORINGMODE },
 	{ "race_hide_players", 			race_hide_players_toggle, 		0, 			CF_PLAYER, 																CD_RHIDEPLAYERS },
 	// }
-	{ "nospecs", 					nospecs, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_NOSPECS },
-	{ "noitems", 					noitems, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_NOITEMS },
-	{ "teamoverlay", 				teamoverlay, 					0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_TEAMOVERLAY },
-	{ "spawn666time", 				Spawn666Time, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS, 									CD_SPAWN666TIME },
-	{ "giveme", 					giveme, 						0, 			CF_PLAYER | CF_MATCHLESS | CF_PARAMS, 									CD_GIVEME },
-	{ "dropitem", 					dropitem, 						0, 			CF_BOTH | CF_PARAMS, 													CD_DROPITEM },
-	{ "removeitem", 				removeitem, 					0, 			CF_BOTH | CF_PARAMS, 													CD_REMOVEITEM },
+	{ "nospecs", 					nospecs, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_NOSPECS },
+	{ "noitems", 					noitems, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_NOITEMS },
+	{ "teamoverlay", 				teamoverlay, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_TEAMOVERLAY },
+	{ "spawn666time", 				Spawn666Time, 					0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_SPAWN666TIME },
+	{ "giveme", 					giveme, 						0, 			CF_PLAYER | CF_MATCHLESS | CF_PARAMS | CF_RULES, 									CD_GIVEME },
+	{ "dropitem", 					dropitem, 						0, 			CF_BOTH | CF_PARAMS | CF_RULES, 													CD_DROPITEM },
+	{ "removeitem", 				removeitem, 					0, 			CF_BOTH | CF_PARAMS | CF_RULES, 													CD_REMOVEITEM },
 	{ "dumpent", 					dumpent, 						0, 			CF_BOTH | CF_PARAMS, 													CD_DUMPENT },
-	{ "socd", 					socd, 							0, 			CF_PLAYER,														CD_SOCD },
-	{ "votecoop", 					votecoop, 						0, 			CF_PLAYER | CF_MATCHLESS, 												CD_VOTECOOP },
-	{ "coop_nm_pu", 				ToggleNewCoopNm, 				0, 			CF_PLAYER | CF_MATCHLESS, 												CD_COOPNMPU },
+	{ "socd", 					socd, 							0, 			CF_PLAYER | CF_RULES,														CD_SOCD },
+	{ "votecoop", 					votecoop, 						0, 			CF_PLAYER | CF_MATCHLESS | CF_RULES, 												CD_VOTECOOP },
+	{ "coop_nm_pu", 				ToggleNewCoopNm, 				0, 			CF_PLAYER | CF_MATCHLESS | CF_RULES, 												CD_COOPNMPU },
 	{ "demomark", 					DemoMark, 						0, 			CF_BOTH, 																CD_DEMOMARK },
 
 #ifdef BOT_SUPPORT
 	// { FROGBOTS
-	{ "botcmd", 					FrogbotsCommand, 				0, 			CF_BOTH | CF_MATCHLESS | CF_PARAMS, 								CD_BOTCOMMAND },
+	{ "botcmd", 					FrogbotsCommand, 				0, 			CF_BOTH | CF_MATCHLESS | CF_PARAMS | CF_RULES, 								CD_BOTCOMMAND },
 	// }
 #endif
 
@@ -1065,11 +1064,11 @@ cmd_t cmds[] =
 
 	// { HOONYMODE
 	{ "pickspawn", 					HM_pick_spawn, 					0, 			CF_PLAYER, 																CD_PICKSPAWN },
-	{ "roundsup", 					HM_roundsup, 					0, 			CF_PLAYER, 																CD_ROUNDSUP },
-	{ "roundsdown", 				HM_roundsdown, 					0, 			CF_PLAYER, 																CD_ROUNDSDOWN },
+	{ "roundsup", 					HM_roundsup, 					0, 			CF_PLAYER | CF_RULES, 																CD_ROUNDSUP },
+	{ "roundsdown", 				HM_roundsdown, 					0, 			CF_PLAYER | CF_RULES, 																CD_ROUNDSDOWN },
 	// }
 
-	{ "voteprivate", 				private_game_vote, 				0, 			CF_PLAYER, 																CD_PRIVATEGAME },
+	{ "voteprivate", 				private_game_vote, 				0, 			CF_PLAYER | CF_RULES, 																CD_PRIVATEGAME },
 
 	{ "gamemodes",					ListGameModes,					0,			CF_BOTH,																CD_GAMEMODES },
 };
@@ -1116,6 +1115,20 @@ int DoCommand(int icmd)
 				return DO_ACCESS_DENIED;
 			}
 		}
+	}
+
+	// qwleague matchmade servers: the ruleset is fixed by the website for the
+	// whole life of the server, so no client may change a game rule — not even
+	// during warmup, when match_in_progress is still 0 and the per-command
+	// "if (match_in_progress) return;" guards let everything through. This is
+	// the chokepoint for every CF_RULES command; is_rules_change_allowed()
+	// covers the same ground for the handful of handlers that call it directly.
+	if (is_matchmade_server() && (cmds[icmd].cf_flags & CF_RULES))
+	{
+		G_sprint(self, 2, "%s\n",
+					redtext("This is a matchmade server — rules are locked."));
+
+		return DO_ACCESS_DENIED;
 	}
 
 	if (spc)
@@ -1902,7 +1915,6 @@ void ModStatus1(void)
 	G_sprint(self, 2, "%-14.14s %-3d\n", redtext("Fraglimit"), (int)fraglimit);
 	G_sprint(self, 2, "%-14.14s %-4.4s ", redtext("Powerups"), Get_PowerupsStr());
 	G_sprint(self, 2, "%-14.14s %-3.3s\n", redtext("Discharge"), OnOff(cvar("k_dis")));
-	G_sprint(self, 2, "%-14.14s %-3.3s\n", redtext("Drop Msg"), OnOff(cvar("k_drp")));
 	G_sprint(self, 2, "%-14.14s %-4.4s ", redtext("Drop Quad"), OnOff(cvar("dq")));
 	G_sprint(self, 2, "%-14.14s %-3.3s\n", redtext("Drop Ring"), OnOff(cvar("dr")));
 	G_sprint(self, 2, "%-14.14s %-4.4s ", redtext("Fair Backpacks"), get_frp_str());
@@ -3373,7 +3385,9 @@ void ShowRules(void)
 		G_sprint(self, 2, "Server is in unknown mode.\n");
 	}
 
-	if (cvar("k_bzk"))
+	// qwleague: berzerk can never arm on a matchmade server (see StartMatch), so
+	// don't promise it here even if a stale k_bzk is still set.
+	if (cvar("k_bzk") && !is_matchmade_server())
 	{
 		G_sprint(self, 2, "\nBERZERK mode is activated!\n"
 					"This means that when only %d seconds\n"
@@ -4205,7 +4219,7 @@ const char _reset_settings[] =
 const char common_um_init[] =
 	"k_pow_pickup 0\n"
 	"sv_loadentfiles_dir \"\"\n"
-	"sv_antilag 1\n"				// antilag on
+	"sv_antilag 2\n"				// antilag on
 	"k_bloodfest 0\n"
 	"k_killquad 0\n"
 	"pm_airstep \"\"\n"				// airstep off by default
@@ -5058,7 +5072,7 @@ void kfjump(void)
 		return;
 	}
 
-	if (self->client_time < self->attack_finished)
+	if (g_globalvars.time < self->attack_finished)
 	{
 		return; // sanity
 	}
@@ -5083,7 +5097,7 @@ void krjump(void)
 		return;
 	}
 
-	if (self->client_time < self->attack_finished)
+	if (g_globalvars.time < self->attack_finished)
 	{
 		return; // sanity
 	}

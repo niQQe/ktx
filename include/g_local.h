@@ -686,6 +686,7 @@ typedef struct cmd_s
 #define CF_REDIRECT			( 1<<7 )						/* command will be redirected to server as /cmd commandname */
 #define CF_MATCHLESS_ONLY	( 1<<8 )						/* command valid for matchLess mode _only_ */
 #define CF_CONNECTION_FLOOD ( 1<<9 )						/* allow flood at connection time, say first 30 seconds */
+#define CF_RULES			( 1<<10 )						/* command changes a global game rule: blocked outright on qwleague matchmade servers */
 
 extern cmd_t cmds[];
 
