@@ -3335,7 +3335,12 @@ void StartMatch(void)
 	// Disable berzerk at start
 	k_berzerk = 0;
 	// Get berzerk mode time
-	if (cvar("k_bzk"))
+	// qwleague: berzerk hands every living player QUAD + PENT for the last
+	// k_btime seconds of the map, which would wreck both the result and the
+	// stats we report. It can never arm on a matchmade server, whatever k_bzk
+	// says — the `berzerk` command is already CF_RULES-blocked, this covers any
+	// other way k_bzk could end up set (stale server config, agent cfg drift).
+	if (cvar("k_bzk") && !is_matchmade_server())
 	{
 		k_berzerktime = cvar("k_btime");
 	}
