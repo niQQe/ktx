@@ -1162,6 +1162,11 @@ void FirstFrame(void)
 	// k_token_teams: "<token> <team> ..." mapping used to force each connecting
 	// matchmade player onto their assigned team (team modes only).
 	RegisterCvarEx("k_token_teams", "");
+	// k_team_colors: "<team> <top> <bottom> ..." — set for tournament fixtures
+	// only, keyed by the same team string k_token_teams assigns (a clan tag),
+	// so each clan plays in its own kit. Empty in a queue match, where colors
+	// fall back to red = 4 / blue = 13.
+	RegisterCvarEx("k_team_colors", "");
 	// k_mm_players: humans+bots needed to auto-start a matchmade game (2 for
 	// 1on1, 4 for 2on2). Defaults to 2.
 	RegisterCvarEx("k_mm_players", "2");

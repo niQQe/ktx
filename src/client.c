@@ -1448,21 +1448,10 @@ qbool CanConnect(void)
 						if (tok[0] && team[0] && streq(tok, my_token))
 						{
 							SetUserInfo(self, "team", team, 0);
-							// Team colors are locked on matchmade servers:
-							// red = 4, blue = 13 (the same pair the CTF
-							// code forces). Set the authoritative userinfo
-							// AND stuff the client so its own color cvar
-							// agrees; later change attempts are rejected in
-							// ClientUserInfoChanged (mm_forced_color).
-							if (streq(team, "red") || streq(team, "blue"))
-							{
-								int c = streq(team, "red") ? 4 : 13;
-
-								SetUserInfo(self, "topcolor", va("%d", c), 0);
-								SetUserInfo(self, "bottomcolor", va("%d", c), 0);
-								stuffcmd_flags(self, STUFFCMD_IGNOREINDEMO,
-										"color %d\n", c);
-							}
+							// Colors are locked to the team this assigns, and
+							// forced in ClientConnect once self->ct says player
+							// (mm_force_colors reads it). Later change attempts
+							// are rejected in ClientUserInfoChanged.
 							break;
 						}
 					}
@@ -2107,6 +2096,12 @@ void ClientConnect(void)
 	self->ct = ctPlayer;
 	self->classname = "player";
 	self->k_accepted = 1; // ok, we allowed to connect
+
+	// Lock this player to the match's colors: the clans' own kit in a
+	// tournament (k_team_colors), red/blue in a queue match. Here rather than in
+	// the CanConnect token loop that assigned the team, because mm_forced_colors
+	// skips spectators and self->ct only becomes ctPlayer on the line above.
+	mm_force_colors(self);
 
 	// if bloodfest is active then set player as unready and kill him later in PutClientInServer()
 	// if match in progress then set client ready anyway.
