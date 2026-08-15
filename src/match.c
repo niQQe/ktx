@@ -1731,8 +1731,14 @@ qbool mm_forced_colors(gedict_t *p, int *top, int *bottom)
 	{
 		if (streq(tm, team))
 		{
-			*top = bound(0, atoi(tc), 13);
-			*bottom = bound(0, atoi(bc), 13);
+			// 0-16, ezQuake's range, not vanilla's 0-13: 14/15/16 (Orange,
+			// Bright red, Black) are real picks a clan can configure, and
+			// ezQuake bounds to 16 in both its "color" command and its display
+			// forcing. Clamping to 13 here would quietly turn a Black kit into
+			// Blue. Its own scoreboard renders 16 as black; only the 3D model
+			// falls back to 13 — that is the client's call to make, not ours.
+			*top = bound(0, atoi(tc), 16);
+			*bottom = bound(0, atoi(bc), 16);
 
 			return true;
 		}
