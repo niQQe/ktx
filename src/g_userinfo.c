@@ -298,19 +298,26 @@ qbool ClientUserInfoChanged(int after)
 
 	if (streq("topcolor", arg_1) || streq("bottomcolor", arg_1))
 	{
-		// Matchmade servers: team colors are locked (red = 4, blue = 13).
-		// Reject any client change and force the assigned color back. The
-		// initial server-side assignment (connect gate) passes through here
-		// with arg_2 already == the forced color, so it falls through.
-		int fc = mm_forced_color(self);
+		// Matchmade servers: the colors belong to the match — the clans' own
+		// kit in a tournament, red = 4 / blue = 13 in a queue match. Reject any
+		// client change and force the assigned color back. The initial
+		// server-side assignment (connect) passes through here with arg_2
+		// already == the forced color, so it falls through.
+		int top = 0, bottom = 0;
 
-		if (fc >= 0 && strneq(arg_2, va("%d", fc)))
+		if (mm_forced_colors(self, &top, &bottom))
 		{
-			SetUserInfo(self, arg_1, va("%d", fc), 0);
-			stuffcmd_flags(self, STUFFCMD_IGNOREINDEMO, "color %d\n", fc);
-			G_sprint(self, 2, "%s\n",
-					redtext("Team colors are locked on matchmade servers."));
-			return true;
+			int fc = (streq("topcolor", arg_1) ? top : bottom);
+
+			if (strneq(arg_2, va("%d", fc)))
+			{
+				SetUserInfo(self, arg_1, va("%d", fc), 0);
+				stuffcmd_flags(self, STUFFCMD_IGNOREINDEMO, "color %d %d\n", top,
+								bottom);
+				G_sprint(self, 2, "%s\n",
+						redtext("Team colors are locked on matchmade servers."));
+				return true;
+			}
 		}
 	}
 
