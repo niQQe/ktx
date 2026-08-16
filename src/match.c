@@ -1683,29 +1683,103 @@ qbool mm_forced_name(gedict_t *p, char *out, int out_size)
 	return false;
 }
 
-// The locked shirt/pants color for a matchmade player's assigned team:
-// red = 4, blue = 13. Returns -1 when no forcing applies (not a matchmade
-// server, spectator, bot, or a team outside the red/blue pair the brain
-// assigns). Used at connect (initial force) and in ClientUserInfoChanged
-// (reject client color changes).
-int mm_forced_color(gedict_t *p)
+// Pull the next space/tab/comma separated token out of *pp, same separators
+// k_token_teams uses. Returns false once the string is exhausted.
+static qbool mm_next_tok(const char **pp, char *out, size_t size)
+{
+	const char *p = *pp;
+	size_t i = 0;
+
+	while ((*p == ' ') || (*p == '\t') || (*p == ','))
+	{
+		p++;
+	}
+
+	while (*p && (*p != ' ') && (*p != '\t') && (*p != ',') && (i < size - 1))
+	{
+		out[i++] = *p++;
+	}
+
+	out[i] = 0;
+	*pp = p;
+
+	return i > 0;
+}
+
+// The locked shirt/pants colors for a matchmade player's assigned team.
+//
+// A tournament fixture carries the two clans' own colors in k_team_colors as
+// "<team> <top> <bottom> ...", keyed by the same team string k_token_teams
+// assigns (a clan's tag, e.g. "SR") — so each clan plays in its own kit. A
+// queue match names no colors and falls back to the classic red = 4 /
+// blue = 13.
+//
+// Returns false when no forcing applies (not a matchmade server, spectator,
+// bot, or a team that is neither named in k_team_colors nor red/blue — forcing
+// nothing beats dumping both clans on red). Used at connect (initial force)
+// and in ClientUserInfoChanged (reject client color changes).
+qbool mm_forced_colors(gedict_t *p, int *top, int *bottom)
 {
 	char *team;
+	const char *s;
+	char tm[32], tc[8], bc[8];
 
 	if (!is_matchmade_server() || p->isBot || p->ct == ctSpec)
 	{
-		return -1;
+		return false;
 	}
+
 	team = getteam(p);
-	if (streq(team, "red"))
+	if (!team[0])
 	{
-		return 4;
+		return false;
 	}
-	if (streq(team, "blue"))
+
+	s = cvar_string("k_team_colors");
+	while (mm_next_tok(&s, tm, sizeof(tm)) && mm_next_tok(&s, tc, sizeof(tc))
+			&& mm_next_tok(&s, bc, sizeof(bc)))
 	{
-		return 13;
+		if (streq(tm, team))
+		{
+			// 0-16, ezQuake's range, not vanilla's 0-13: 14/15/16 (Orange,
+			// Bright red, Black) are real picks a clan can configure, and
+			// ezQuake bounds to 16 in both its "color" command and its display
+			// forcing. Clamping to 13 here would quietly turn a Black kit into
+			// Blue. Its own scoreboard renders 16 as black; only the 3D model
+			// falls back to 13 — that is the client's call to make, not ours.
+			*top = bound(0, atoi(tc), 16);
+			*bottom = bound(0, atoi(bc), 16);
+
+			return true;
+		}
 	}
-	return -1;
+
+	if (streq(team, "red") || streq(team, "blue"))
+	{
+		*top = *bottom = (streq(team, "red") ? 4 : 13);
+
+		return true;
+	}
+
+	return false;
+}
+
+// Put the forced colors on the player: the authoritative userinfo (what the
+// scoreboard, other clients and QTV read) plus a stuffcmd so the client's own
+// cvars agree. It has to be "color <top> <bottom>" — clients have no
+// topcolor/bottomcolor command, so that is the only form that takes.
+void mm_force_colors(gedict_t *p)
+{
+	int top = 0, bottom = 0;
+
+	if (!mm_forced_colors(p, &top, &bottom))
+	{
+		return;
+	}
+
+	SetUserInfo(p, "topcolor", va("%d", top), 0);
+	SetUserInfo(p, "bottomcolor", va("%d", bottom), 0);
+	stuffcmd_flags(p, STUFFCMD_IGNOREINDEMO, "color %d %d\n", top, bottom);
 }
 
 // ─── Matchmade ruleset gate (best-effort, spoofable) ────────────────────────
