@@ -947,6 +947,7 @@ void k_respawn(gedict_t *p, qbool body)
 	SetRespawnParms();
 	// respawn
 	PutClientInServer();
+	self->weapon_generation = (self->weapon_generation % 15) + 1;
 	WeaponPrediction_ResetBaseline();
 
 	// Keep intentional weapon-select respawn commands, but drop stale/invalid backups.
@@ -1665,7 +1666,16 @@ qbool WeaponPrediction_SendEntity(int sendflags)
 	if (sendflags & WEAPONINFO_INDEX)
 	{
 		WriteByte(MSG_CSQC, owner->s.v.impulse);
-		WriteByte(MSG_CSQC, owner->weapon_index);
+		// Version 2 clients decode the respawn generation from the weapon index's upper four bits.
+		if (iKey(owner, "ezcsqc_ready") >= 2)
+		{
+			WriteByte(MSG_CSQC, (owner->weapon_generation << WEAPONINFO_GENERATION_SHIFT)
+				| ((int)owner->weapon_index & WEAPONINFO_WEAPON_MASK));
+		}
+		else
+		{
+			WriteByte(MSG_CSQC, owner->weapon_index);
+		}
 	}
 	if (sendflags & WEAPONINFO_AMMO_SHELLS)
 		WriteByte(MSG_CSQC, owner->s.v.ammo_shells);

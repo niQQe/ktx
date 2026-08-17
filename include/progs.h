@@ -802,6 +802,9 @@ typedef struct fb_entvars_s {
 #define WEAPONINFO_ATTACK		(1 << 5)
 #define WEAPONINFO_TIMING		(1 << 6)
 #define WEAPONINFO_PRED_PING	(1 << 7)
+/* EZCSQC version 2 packs respawn generation above the four-bit weapon index. */
+#define WEAPONINFO_WEAPON_MASK	0x0f
+#define WEAPONINFO_GENERATION_SHIFT 4
 
 #define PROJECTILE_ORIGIN		(1 << 0)
 #define PROJECTILE_MODEL		(1 << 1)
@@ -1332,6 +1335,7 @@ typedef struct gedict_s
 	float client_ping;
 	float client_predflags;
 	struct gedict_s *weapon_pred;
+	int weapon_generation;
 // }
 
 // { hiprot fields

@@ -664,8 +664,6 @@ void antilag_lagmove_all_proj(gedict_t *owner, gedict_t *e)
 	else if (ms < 0)
 		ms = 0;
 
-	e->client_time = ms;
-
 	// log hold stats, because we use nohold antilag moving
 	
 	for (list = antilag_list_players; list != NULL; list = list->next)
@@ -777,8 +775,6 @@ void antilag_lagmove_all_proj_bounce(gedict_t *owner, gedict_t *e)
 		ms = 0;
 	else
 		ms = min(ms, ANTILAG_REWIND_MAXPROJECTILE);
-
-	e->client_time = ms;
 
 	// log hold stats, because we use nohold antilag moving
 	for (list = antilag_list_players; list != NULL; list = list->next)
