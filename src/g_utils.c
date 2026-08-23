@@ -2470,6 +2470,10 @@ void on_enter(void)
 			stuffcmd_flags(self, STUFFCMD_IGNOREINDEMO, "on_spec_enter\n");
 		}
 	}
+
+	// qwleague: probe this player's client ruleset on a matchmade server (no-op
+	// unless k_mm_require_ruleset is set).
+	mm_arm_ruleset_check(self);
 }
 
 void on_match_start(gedict_t *p)

@@ -964,6 +964,13 @@ void vote_check_rpickup(int maxRecursion)
 
 void FixNoSpecs(void)
 {
+	// Matchmade (qwleague) servers stay no-specs for the whole life of the
+	// server, INCLUDING the empty pre-match window — otherwise this clears it on
+	// the fresh-spawn empty state and spectators could join the match.
+	if (is_matchmade_server())
+	{
+		return;
+	}
 	// turn off "no specs" mode if there no players left
 	if ((g_globalvars.time > 10) && !match_in_progress && !CountPlayers() && cvar("_k_nospecs"))
 	{
@@ -1654,7 +1661,11 @@ qbool is_private_game(void)
 
 qbool is_logged_in(gedict_t *p)
 {
-	return ezinfokey(p, "login")[0];
+	// Accept the standard "login" userinfo (set by MVDSV's auth flow) OR
+	// the "qwleague_token" key which clients can set freely via setinfo. The
+	// qwleague key is what links a player to their account on the qwleague
+	// backend for /official-1on1 matches.
+	return ezinfokey(p, "login")[0] || ezinfokey(p, "qwleague_token")[0];
 }
 
 qbool private_game_voteable(void)
@@ -1666,6 +1677,8 @@ qbool private_game_by_default(void)
 {
 	return cvar("k_privategame_default");
 }
+
+// }
 
 void vote_check_swapall(void)
 {

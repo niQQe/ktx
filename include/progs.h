@@ -1007,6 +1007,8 @@ typedef struct gedict_s
 // { kick mode
 	struct gedict_s *k_playertokick;		// player selected to be kicked
 	float k_kicking;						// if player is in kick mode
+	qbool k_was_kicked;						// qwleague: admin-kicked — removed, not abandoned;
+											// don't blame as the match's first leaver
 // }
 	float k_1spawn;							// NOT_SURE: used in kteams respawn code...
 	float k_accepted;						// NOT_SURE:
@@ -1221,6 +1223,12 @@ typedef struct gedict_s
 // }
 
 	char *f_checkbuf;						// for /cmd check f_xxx
+
+	// qwleague matchmade ruleset gate: deadline by which this player must have
+	// replied to the connect-time `f_ruleset` probe with the required ruleset,
+	// else they're kicked. 0 = not pending. Reply text is captured into
+	// f_checkbuf (reused) while this is armed.
+	float mm_rs_deadline;
 
 	// Yawnmode variables
 	vec3_t old_vel;							// store pre physicsthink velocity

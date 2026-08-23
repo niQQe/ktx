@@ -144,11 +144,52 @@ qbool SpecCanConnect(gedict_t *spec)
 {
 	if (!nospecs_canconnect(spec))
 	{
-		G_sprint(spec, 2, "%s mode, you can't connect\n", redtext("No spectators"));
+		if (is_matchmade_server())
+		{
+			G_sprint(spec, 2, "%s\n%s\n",
+					redtext("This is a QWLeague match - no spectators allowed."),
+					redtext("Register @ qwleague.com"));
+		}
+		else
+		{
+			G_sprint(spec, 2, "%s mode, you can't connect\n", redtext("No spectators"));
+		}
 
 		return false;
 	}
 
+	return true;
+}
+
+// On a matchmade server a real match player can land in a spectator slot if
+// their client connected carrying a stale/non-zero `spectator` userinfo (e.g.
+// left over from watching an earlier game or a QTV stream). Rather than bouncing
+// them with the "no spectators" message, auto-fix it: if they hold a valid match
+// token, clear `spectator` and reconnect so the engine routes them into a player
+// slot. The `_qwl_specfix` marker bounds this to a single attempt, so a client
+// that refuses to clear `spectator` is kicked normally rather than looping
+// disconnect/reconnect forever. Returns true if a promotion was issued (the
+// caller must NOT also kick).
+static qbool mm_promote_spectator(gedict_t *spec)
+{
+	if (!is_matchmade_server() || spec->isBot)
+	{
+		return false;
+	}
+	if (!mm_token_allowed(ezinfokey(spec, "qwleague_token")))
+	{
+		return false;
+	}
+	if (ezinfokey(spec, "_qwl_specfix")[0]) // already retried once - give up
+	{
+		return false;
+	}
+
+	G_sprint(spec, 2, "%s\n",
+			redtext("QWLeague match - joining as a player, reconnecting..."));
+	stuffcmd_flags(spec, STUFFCMD_IGNOREINDEMO, "setinfo _qwl_specfix 1\n");
+	stuffcmd_flags(spec, STUFFCMD_IGNOREINDEMO, "spectator 0\n");
+	stuffcmd_flags(spec, STUFFCMD_IGNOREINDEMO, "disconnect\nwait;wait;reconnect\n");
 	return true;
 }
 
@@ -168,6 +209,13 @@ void SpectatorConnect(void)
 
 	if (!SpecCanConnect(self))
 	{
+		// Expected match player who arrived as a spectator? Fix their userinfo
+		// and reconnect them as a player instead of kicking.
+		if (mm_promote_spectator(self))
+		{
+			return;
+		}
+
 		stuffcmd(self, "disconnect\n"); // FIXME: stupid way
 
 		return;
