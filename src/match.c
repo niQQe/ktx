@@ -313,13 +313,35 @@ void mm_series_map_at(int idx, char *out, int out_sz)
 	}
 }
 
-// Series map winner by total frags per series team. The brain forces every
-// matchmade player's "team" userinfo to "red" (backend team 1) or "blue"
-// (team 2) for ALL modes, including 1on1 (see TEAM_NAMES in spawn.py). We
-// deliberately do NOT use get_scores1()/get_scores2() here: those only sum
-// frags for _k_team1/_k_team2, which are unset in a teamplay-0 duel, so a duel
-// always read 0-0 and the series never clinched. Bucketing by the forced team
-// works for duel and team modes alike.
+// Which team userinfo string is backend team 1 vs team 2
+// (k_series_team1/2, sent by the brain in ITS team order — a mid-series swap
+// respawn seeds k_series_t1wins/t2wins in that same numbering, so t1/t2 must
+// never be guessed from whichever teams happen to be present). Queue matches
+// really are "red"/"blue" (spawn.py TEAM_NAMES) and the brain omits the
+// cvars, leaving the registered defaults; clan matches (pracs, clan
+// tournament fixtures) carry the clans' TAGS here — the old hardcoded
+// "red"/"blue" comparisons never matched a tag, so the series score stayed
+// 0-0 and a decided series played its whole map list.
+static char *mm_series_team1(void)
+{
+	char *t = cvar_string("k_series_team1");
+
+	return strnull(t) ? "red" : t;
+}
+
+static char *mm_series_team2(void)
+{
+	char *t = cvar_string("k_series_team2");
+
+	return strnull(t) ? "blue" : t;
+}
+
+// Series map winner by total frags per series team, bucketed by each player's
+// "team" userinfo (the brain forces it for ALL modes, including 1on1 — see
+// k_token_teams). We deliberately do NOT use get_scores1()/get_scores2()
+// here: those only sum frags for _k_team1/_k_team2, which are unset in a
+// teamplay-0 duel, so a duel always read 0-0 and the series never clinched.
+// Bucketing by the forced team works for duel and team modes alike.
 static void mm_series_team_frags(int *out_t1, int *out_t2)
 {
 	gedict_t *p;
@@ -329,11 +351,11 @@ static void mm_series_team_frags(int *out_t1, int *out_t2)
 	{
 		char *t = getteam(p);
 
-		if (streq(t, "red"))
+		if (streq(t, mm_series_team1()))
 		{
 			t1 += p->s.v.frags;
 		}
-		else if (streq(t, "blue"))
+		else if (streq(t, mm_series_team2()))
 		{
 			t2 += p->s.v.frags;
 		}
@@ -2491,10 +2513,15 @@ static int mm_forfeit_outcome(char *loser, int loser_sz)
 
 	if (cvar_string("k_token_teams")[0])
 	{
+		// red/blue here mean backend team 1/2 — resolved via k_series_team1/2
+		// (clan matches carry clan tags as the team strings; the old literal
+		// "red"/"blue" comparisons resolved NO team there, so every clan-match
+		// disconnect fell through to the "abort safely" outcome and the leaver
+		// dodged the forfeit).
 		for (i = 0; i < n; i++)
 		{
 			mm_token_team(missing[i], team, sizeof(team));
-			if (streq(team, "red"))
+			if (streq(team, mm_series_team1()))
 			{
 				red = true;
 				if (!red_tok[0])
@@ -2502,7 +2529,7 @@ static int mm_forfeit_outcome(char *loser, int loser_sz)
 					strlcpy(red_tok, missing[i], sizeof(red_tok));
 				}
 			}
-			else if (streq(team, "blue"))
+			else if (streq(team, mm_series_team2()))
 			{
 				blue = true;
 				if (!blue_tok[0])
@@ -2613,18 +2640,19 @@ static qbool mm_in_abort_window(void)
 	return (g_globalvars.time - match_start_time) < (float) win;
 }
 
-// Record which team forfeited (1 = red/team1, 2 = blue/team2) from a player
-// token, so EndMatch can credit the OTHER team with this map's win.
+// Record which team forfeited (1/2 in the brain's numbering, resolved via
+// k_series_team1/2 — clan matches carry clan tags, not "red"/"blue") from a
+// player token, so EndMatch can credit the OTHER team with this map's win.
 static void mm_set_forfeit_team_from_token(const char *tok)
 {
 	char team[32];
 	int t = 0;
 	mm_token_team((char *) tok, team, sizeof(team));
-	if (streq(team, "red"))
+	if (streq(team, mm_series_team1()))
 	{
 		t = 1;
 	}
-	else if (streq(team, "blue"))
+	else if (streq(team, mm_series_team2()))
 	{
 		t = 2;
 	}
