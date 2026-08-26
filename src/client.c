@@ -1465,6 +1465,7 @@ qbool CanConnect(void)
 			// legit reconnect is still allowed within the forfeit window.
 			{
 				gedict_t *other;
+				const char *other_token;
 				for (other = world; (other = find_plr(other));)
 				{
 					if (other == self)
@@ -1475,7 +1476,7 @@ qbool CanConnect(void)
 					// other player passed this same gate), not the mutable
 					// client key, which its holder could blank to hide from
 					// this check.
-					const char *other_token = ezinfokey(other, "*mtoken");
+					other_token = ezinfokey(other, "*mtoken");
 					if (!other_token[0])
 					{
 						other_token = ezinfokey(other, "qwleague_token");
