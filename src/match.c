@@ -611,6 +611,7 @@ void EndMatch(float skip_log)
 		int t2     = (int) cvar("k_series_t2wins");
 		int total  = mm_series_map_count();
 		int clinch = bestof / 2 + 1;
+		qbool playall = cvar("k_series_playall");
 		qbool forfeit = cvar_string("k_match_forfeit_loser")[0] != 0;
 		int s1, s2;
 		qbool decided;
@@ -637,7 +638,21 @@ void EndMatch(float skip_log)
 		cvar_fset("k_series_t1wins", t1);
 		cvar_fset("k_series_t2wins", t2);
 
-		decided = (t1 >= clinch) || (t2 >= clinch) || ((idx + 1) >= total);
+		// Fixed-length series ("Game of N", k_series_playall 1): no clinch —
+		// every map in the list is played and the backend picks the winner by
+		// map wins. Checked against the LIST only, never t1/t2: a mid-series
+		// server-swap respawn seeds k_series_t1wins/t2wins at or past clinch
+		// with just the undecided maps in k_series_maps, and those must still
+		// be played. The abandon watchdog's series forfeit is a separate path
+		// and still ends a playall series early.
+		if (playall)
+		{
+			decided = ((idx + 1) >= total);
+		}
+		else
+		{
+			decided = (t1 >= clinch) || (t2 >= clinch) || ((idx + 1) >= total);
+		}
 		if (!decided)
 		{
 			cvar_fset("k_series_index", idx + 1);
