@@ -1277,6 +1277,7 @@ qbool mm_forfeit_is_active(void);
 void mm_extend_forfeit_deadline(int ms);
 int mm_series_map_count(void);
 void mm_series_map_at(int idx, char *out, int out_sz);
+int mm_map_disallow_weapons(void);
 void mm_arm_ruleset_check(gedict_t *p);
 qbool mm_capture_ruleset_reply(gedict_t *p, const char *say_text);
 void mm_check_ruleset_deadlines(void);

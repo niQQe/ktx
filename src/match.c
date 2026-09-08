@@ -313,6 +313,64 @@ void mm_series_map_at(int idx, char *out, int out_sz)
 	}
 }
 
+// Per-map weapon bans for a matchmade match. k_match_map_rules is
+// "<map>:<k_disallow_weapons bitmask> ..." as rendered by the agent (qwleague
+// docs/aim-mode.md), and carries EVERY map of the series pool including the
+// ones that ban nothing. Returns this map's mask, or 0 when the map isn't
+// listed -- which is also what an empty cvar gives, i.e. every mode that
+// states no bans, and every older brain.
+//
+// Those zeros are the point: one server plays a whole series and
+// k_disallow_weapons survives the changelevel, so a map with no entry would
+// inherit the previous map's bans -- aim's no-LG on end leaking onto povdmm4.
+//
+// Scanned by hand like mm_series_map_at above rather than with strtok:
+// cvar_string hands back an engine-owned buffer and strtok would write into
+// it. Masked with DA_WPNS so a malformed value can only ever ban real weapons.
+int mm_map_disallow_weapons(void)
+{
+	const char *p = cvar_string("k_match_map_rules");
+	char tok[80];
+	char *colon;
+	size_t n;
+
+	while (*p)
+	{
+		while (*p == ' ' || *p == '\t')
+		{
+			p++;
+		}
+		if (!*p)
+		{
+			break;
+		}
+		n = 0;
+		while (*p && *p != ' ' && *p != '\t' && n < sizeof(tok) - 1)
+		{
+			tok[n++] = *p++;
+		}
+		tok[n] = 0;
+		// Drain an over-long entry, so the scan resumes at the next token
+		// instead of re-reading this one's tail as an entry of its own.
+		while (*p && *p != ' ' && *p != '\t')
+		{
+			p++;
+		}
+		colon = strchr(tok, ':');
+		if (!colon)
+		{
+			continue;
+		}
+		*colon = 0;
+		if (streq(tok, mapname))
+		{
+			return atoi(colon + 1) & DA_WPNS;
+		}
+	}
+
+	return 0;
+}
+
 // Which team userinfo string is backend team 1 vs team 2
 // (k_series_team1/2, sent by the brain in ITS team order — a mid-series swap
 // respawn seeds k_series_t1wins/t2wins in that same numbering, so t1/t2 must
