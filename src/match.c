@@ -1076,7 +1076,7 @@ void TimerThink(void)
 	{
 		for (p = world; (p = find_plr(p));)
 		{
-			idle_time = (int)(g_globalvars.time - p->attack_finished);
+			idle_time = (int)(p->client_time - p->attack_finished);
 			if (idle_time > k_matchLess_idle_time)
 			{
 				G_sprint(
@@ -1427,6 +1427,16 @@ static void SM_PrepareClients(void)
 	for (p = world; (p = find_plr(p));)
 	{
 		players[player_count++] = p;
+		p->socdDetectionCount = 0;
+		p->socdValidationCount = 0;
+		p->fStrafeChangeCount = 0;
+		p->fFramePerfectStrafeChangeCount = 0;
+		p->fLastSideMoveSpeed = 0;
+		p->matchStrafeChangeCount = 0;
+		p->matchPerfectStrafeCount = 0;
+		p->totalStrafeChangeCount = 0;
+		p->totalPerfectStrafeCount = 0;
+		p->nullStrafeCount = 0;
 	}
 
 	for (i = player_count - 1; i > 0; i--)
@@ -3844,6 +3854,11 @@ void PrintCountdown(int seconds)
 		if (cvar("sv_antilag"))
 		{
 			strlcat(text, va("%s %5s\n", "Antilag", dig3((int)cvar("sv_antilag"))), sizeof(text));
+		}
+
+		if (cvar("k_drp"))
+		{
+			strlcat(text, va("%s %5s\n", "DropMsg", dig3((int)cvar("k_drp"))), sizeof(text));
 		}
 
 		if (cvar("k_noitems") && !isRACE())

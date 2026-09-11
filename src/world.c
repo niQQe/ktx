@@ -213,6 +213,7 @@ void SP_worldspawn(void)
 
 // player precaches     
 	W_Precache();		// get weapon precaches
+	WPredict_Initialize();
 
 // sounds used from C physics code
 	trap_precache_sound("demon/dland2.wav");	// landing thud
@@ -878,6 +879,7 @@ void FirstFrame(void)
 	RegisterCvarEx("k_keepspectalkindemos", "0");
 	RegisterCvar("k_sayteam_to_spec");
 	RegisterCvar("k_dis");
+	RegisterCvar("k_drp");
 	RegisterCvar("dq");
 	RegisterCvar("dr");
 	RegisterCvar("dp");
@@ -2035,6 +2037,7 @@ void check_fcheck(void);
 void CheckTeamStatus(void);
 void SendSpecInfo(void);
 void DoMVDAutoTrack(void);
+void antilag_updateworld(void);
 
 void FixNoSpecs(void);
 
@@ -2122,7 +2125,12 @@ void StartFrame(int time)
 
 	TeamplayGameTick();
 
+	UpdateProjectileSendNeeded();
+
 	WillPause();
+
+	time_corrected = time;
+	antilag_updateworld();
 }
 
 // Check the same spawnflags as items only visible in DM for monsters as well.
