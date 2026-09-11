@@ -1170,6 +1170,19 @@ void FirstFrame(void)
 	// duel-mode default timelimit/fraglimit. Set to 0 to keep the duel default.
 	RegisterCvarEx("k_match_timelimit", "10");
 	RegisterCvarEx("k_match_fraglimit", "0");
+	// The rest of the brain-stated match ruleset (qwleague docs/aim-mode.md),
+	// applied in the same place and for the same reason as the two above: the
+	// usermode init that runs at every map load resets deathmatch/k_overtime
+	// to that usermode's own defaults, so a mode whose ruleset differs from
+	// them (aim's dmm4 + sudden death) does not survive the map coming up.
+	// 0 / empty means the brain said nothing — keep KTX's own default.
+	RegisterCvarEx("k_match_dmm", "0");
+	RegisterCvarEx("k_match_overtime", "0");
+	// "<map>:<k_disallow_weapons bitmask> ..." for every map of the series,
+	// zeros included: one server plays the whole series and the cvar survives
+	// the changelevel, so a map missing here would inherit the previous map's
+	// bans.
+	RegisterCvarEx("k_match_map_rules", "");
 	// k_qwleague_url: signup URL shown to players who haven't set their token.
 	RegisterCvarEx("k_qwleague_url", "");
 	// k_token_teams: "<token> <team> ..." mapping used to force each connecting
@@ -1305,6 +1318,75 @@ void FirstFrame(void)
 		if (fl > 0)
 		{
 			cvar_fset("fraglimit", fl);
+		}
+
+		// ...and the rest of the brain-stated ruleset, for exactly the same
+		// reason: UserMode has just reset these to the usermode's defaults,
+		// and this block runs at EVERY map load, so a Bo3 re-applies them per
+		// map. The globals behind these cvars are re-read by FixRules on the
+		// next frame, so setting the cvar is enough.
+		{
+			float mm_dmm = cvar("k_match_dmm");
+			float mm_ot = cvar("k_match_overtime");
+			char rules[1024];
+			char *p, *tok, *colon;
+
+			if (mm_dmm > 0)
+			{
+				cvar_fset("deathmatch", mm_dmm);
+			}
+
+			if (mm_ot > 0)
+			{
+				cvar_fset("k_overtime", mm_ot);
+			}
+
+			// Per-map weapon bans. Reset to 0 FIRST, so a map the list does
+			// not mention cannot keep the previous map's bans (end's no-LG
+			// leaking onto the rest of the series).
+			strlcpy(rules, cvar_string("k_match_map_rules"), sizeof(rules));
+			if (rules[0])
+			{
+				cvar_fset("k_disallow_weapons", 0);
+			}
+
+			// Hand-rolled split on spaces: strtok() is not in the qvm libc.
+			p = rules;
+			while (*p)
+			{
+				while (*p == ' ')
+				{
+					p++;
+				}
+
+				if (!*p)
+				{
+					break;
+				}
+
+				tok = p;
+				while (*p && (*p != ' '))
+				{
+					p++;
+				}
+
+				if (*p)
+				{
+					*p++ = 0;
+				}
+
+				if (!(colon = strchr(tok, ':')))
+				{
+					continue;
+				}
+
+				*colon = 0;
+				if (streq(tok, mapname))
+				{
+					cvar_fset("k_disallow_weapons", (float)(atoi(colon + 1) & DA_WPNS));
+					break;
+				}
+			}
 		}
 
 		// Fresh pre-match clocks for this map (waiting budget + warmup budget),
