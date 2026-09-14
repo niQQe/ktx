@@ -766,6 +766,96 @@ typedef struct fb_entvars_s {
 } fb_entvars_t;
 #endif
 
+#define ANTILAG_REWIND_MAXHITSCAN	 0.250
+#define ANTILAG_REWIND_MAXPROJECTILE 0.080
+#define ANTILAG_TIMESTEP 0.01
+//#define ANTILAG_XERP 0
+#define ANTILAG_MAX_PREDICTION 0.02
+#define ANTILAG_MAX_XERP 0.02
+#define ANTILAG_MAXSTATES 40
+#define ANTILAG_MAXEDICTS 256
+#define SENDFLAGS_ALL 0xFFFFFF
+
+#define WEPPRED_MAXSTATES		32
+#define WEPPREDANIM_SOUND		0x0001
+#define WEPPREDANIM_PROJECTILE	0x0002
+#define WEPPREDANIM_LGBEAM		0x0004
+#define WEPPREDANIM_MUZZLEFLASH	0x0008
+#define WEPPREDANIM_DEFAULT		0x0010
+#define WEPPREDANIM_ATTACK		0x0020
+#define WEPPREDANIM_BRANCH		0x0040
+#define WEPPREDANIM_MOREBYTES	0x0080
+#define WEPPREDANIM_SOUNDAUTO	(0x0100 | WEPPREDANIM_MOREBYTES)
+#define WEPPREDANIM_LTIME		(0x0200 | WEPPREDANIM_MOREBYTES)
+#define WEPPREDANIM_SOUND2		(0x0400 | WEPPREDANIM_MOREBYTES)
+#define WEPPREDANIM_HAS(flags, flag) (((flags) & (flag)) == (flag))
+
+#define WEAPONDEF_INIT			(1 << 0)
+#define WEAPONDEF_FLAGS			(1 << 1)
+#define WEAPONDEF_ANIM			(1 << 2)
+
+#define WEAPONINFO_INDEX		(1 << 0)
+#define WEAPONINFO_AMMO_SHELLS	(1 << 1)
+#define WEAPONINFO_AMMO_NAILS	(1 << 2)
+#define WEAPONINFO_AMMO_ROCKETS	(1 << 3)
+#define WEAPONINFO_AMMO_CELLS	(1 << 4)
+#define WEAPONINFO_ATTACK		(1 << 5)
+#define WEAPONINFO_TIMING		(1 << 6)
+#define WEAPONINFO_PRED_PING	(1 << 7)
+
+#define PROJECTILE_ORIGIN		(1 << 0)
+#define PROJECTILE_MODEL		(1 << 1)
+#define PROJECTILE_ANGLES		(1 << 2)
+#define PROJECTILE_OWNER		(1 << 3)
+#define PROJECTILE_SPAWN_ORIGIN	(1 << 4)
+#define PROJECTILE_INITIAL		(PROJECTILE_ORIGIN | PROJECTILE_MODEL | PROJECTILE_ANGLES | PROJECTILE_OWNER | PROJECTILE_SPAWN_ORIGIN)
+
+typedef struct weppredanim_s
+{
+	signed char		mdlframe;
+	int				flags;
+	int				sound;
+	int				soundmask;
+	int				sound2;
+	int				soundmask2;
+	int				projectile_model;
+	short			projectile_velocity[3];
+	signed char		projectile_offset[3];
+	byte			nextanim;
+	byte			altanim;
+	short			length;
+} weppredanim_t;
+
+typedef struct weppreddef_s
+{
+	int				modelindex;
+	int				attack_time;
+
+	byte			impulse;
+	int				itemflag;
+
+	byte			anim_number;
+	weppredanim_t	anim_states[WEPPRED_MAXSTATES];
+} weppreddef_t;
+
+struct gedict_s;
+typedef struct antilag_s {
+	vec3_t		rewind_origin[ANTILAG_MAXSTATES];
+	vec3_t		rewind_velocity[ANTILAG_MAXSTATES];
+	vec3_t		rewind_platform_offset[ANTILAG_MAXSTATES];
+	int			rewind_platform_edict[ANTILAG_MAXSTATES];
+	float		rewind_time[ANTILAG_MAXSTATES];
+	int			rewind_seek;
+
+	vec3_t		held_origin;
+	vec3_t		held_velocity;
+
+	struct gedict_s *owner;
+
+	struct antilag_s *prev;
+	struct antilag_s *next;
+} antilag_t;
+
 //typedef (void(*)(gedict_t *)) one_edict_func;
 typedef struct gedict_s
 {
@@ -1237,6 +1327,19 @@ typedef struct gedict_s
 
 // {
 	qbool spawn_effect_queued;
+// }
+
+// { antilag
+	struct antilag_s *antilag_data;
+	int weapon_index;
+	float client_time;
+	float client_lastupdated;
+	float client_nextthink;
+	func_t client_think;
+	float client_thinkindex;
+	float client_ping;
+	float client_predflags;
+	struct gedict_s *weapon_pred;
 // }
 
 // { hiprot fields
