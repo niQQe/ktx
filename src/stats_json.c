@@ -378,6 +378,14 @@ void json_player_detail(fileHandle_t handle, int player_num, gedict_t *player, c
 	S2di(handle, INDENT6 "\"speed\": { \"max\": %f, \"avg\": %f }," JSON_CR,
 			player->ps.velocity_max,
 			player->ps.vel_frames > 0 ? player->ps.velocity_sum / player->ps.vel_frames : 0.);
+	S2di(handle, INDENT6 "\"movement\": { \"strafe_changes\": %d, \"perfect_strafes\": %d,"
+			" \"session\": { \"strafe_changes\": %d, \"perfect_strafes\": %d,"
+			" \"socd_detections\": %d, \"socd_validations\": %d, \"assisted\": %d },"
+			" \"version\": \"%s\" }," JSON_CR,
+			player->matchStrafeChangeCount, player->matchPerfectStrafeCount,
+			player->totalStrafeChangeCount, player->totalPerfectStrafeCount,
+			player->socdDetectionCount, player->socdValidationCount,
+			socd_movement_assisted(player) ? 1 : 0, SOCD_DETECTION_VERSION);
 	if (GetHandicap(player) != 100)
 	{
 		S2di(handle, INDENT6 "\"handicap\": %d," JSON_CR, GetHandicap(player));
