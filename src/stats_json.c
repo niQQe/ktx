@@ -383,6 +383,22 @@ void json_player_detail(fileHandle_t handle, int player_num, gedict_t *player, c
 		S2di(handle, INDENT6 "\"handicap\": %d," JSON_CR, GetHandicap(player));
 	}
 
+	// SOCD (keyboard strafe-assist) counters, so the brain can log a detection
+	// against the account instead of it only scrolling past in the scoreboard.
+	// Counters are zeroed per map in SM_PrepareClients; match_* only tick while
+	// the match is live, total_* include warmup.
+	if (!player->isBot)
+	{
+		S2di(handle,
+				INDENT6 "\"socd\": { \"version\": \"%s\", \"detections\": %d, \"validations\": %d, "
+				"\"strafes\": %d, \"perfect\": %d, \"total_strafes\": %d, \"total_perfect\": %d, "
+				"\"assisted\": %s, \"mode\": %d }," JSON_CR,
+				SOCD_DETECTION_VERSION, player->socdDetectionCount, player->socdValidationCount,
+				player->matchStrafeChangeCount, player->matchPerfectStrafeCount,
+				player->totalStrafeChangeCount, player->totalPerfectStrafeCount,
+				socd_movement_assisted(player) ? "true" : "false", (int)cvar("k_socd"));
+	}
+
 	json_weap_header(handle);
 	for (j = 1; j < wpMAX; j++)
 	{
