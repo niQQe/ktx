@@ -1189,6 +1189,10 @@ void FirstFrame(void)
 	// k_match_map_rules: "<map>:<k_disallow_weapons bitmask> ..." for every map
 	// of the series pool. Parsed per map by mm_map_disallow_weapons().
 	RegisterCvarEx("k_match_map_rules", "");
+	// k_match_tag: what kind of match this is, as the brain names it ("4on4
+	// solo", "2on2 team official"). Published as serverinfo matchtag by
+	// mm_apply_match_tag(), re-applied below for the same reason as the rest.
+	RegisterCvarEx("k_match_tag", "");
 	// k_qwleague_url: signup URL shown to players who haven't set their token.
 	RegisterCvarEx("k_qwleague_url", "");
 	// k_token_teams: "<token> <team> ..." mapping used to force each connecting
@@ -1356,6 +1360,9 @@ void FirstFrame(void)
 		{
 			cvar_fset("k_disallow_weapons", mm_map_disallow_weapons());
 		}
+		// The match tag, which UserMode itself leaves alone -- but a rules
+		// reset in between (everyone left) cleared it.
+		mm_apply_match_tag();
 
 		// Fresh pre-match clocks for this map (waiting budget + warmup budget),
 		// then spawn the join-deadline ticker. If the matched players are not all
