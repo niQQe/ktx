@@ -4926,6 +4926,10 @@ void execute_rules_reset(void)
 	{
 		UserMode(-(um_idx + 1)); // force exec configs for default user mode
 	}
+
+	// _reset_settings just cleared serverinfo matchtag; a matchmade server
+	// keeps its brain-stated one (no-op anywhere else).
+	mm_apply_match_tag();
 }
 
 // This routine change map if srv_practice_mode == 0 and 'map' is not NULL,
