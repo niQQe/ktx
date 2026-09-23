@@ -1161,6 +1161,13 @@ void FirstFrame(void)
 	// at the end of the match. Emitted in the stats JSON so the backend
 	// awards Elo to the remaining player regardless of frag counts.
 	RegisterCvarEx("k_match_forfeit_loser", "");
+	// k_match_forfeit_team: which series team (1/2, brain numbering) the
+	// forfeit_loser is on, so EndMatch credits the OTHER team with the map.
+	// Must be registered: a cvar_fset on an unknown cvar is silently dropped
+	// by the engine, which left this reading 0 and EndMatch falling back to
+	// frags — a forfeiting team that led on frags "won" the map and the
+	// server loaded a map the brain had already closed the series on.
+	RegisterCvarEx("k_match_forfeit_team", "0");
 	// k_match_aborted: set to "1" when the match ended without a clear
 	// winner — e.g., both players disconnected and didn't return. Emitted
 	// in the stats JSON so the backend records the session as aborted
