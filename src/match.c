@@ -1603,6 +1603,31 @@ qbool is_matchmade_server(void)
 	return cvar_string("k_allowed_tokens")[0] != 0;
 }
 
+// Publish the brain-stated match tag (k_match_tag, e.g. "4on4 solo" or
+// "2on2 team official") as serverinfo matchtag -- the key QTV, the hub and
+// the server browsers show as what kind of match this is. The agent's match
+// config sets the serverinfo key too, but that only covers the boot: KTX's
+// rules reset (last player leaving, _reset_settings) clears matchtag, so it
+// is re-applied from the cvar at every map load and after every reset.
+// Empty means the brain stated nothing, which leaves matchtag alone.
+void mm_apply_match_tag(void)
+{
+	char tag[32];
+
+	if (!is_matchmade_server())
+	{
+		return;
+	}
+
+	strlcpy(tag, cvar_string("k_match_tag"), sizeof(tag));
+	if (!tag[0])
+	{
+		return;
+	}
+
+	localcmd("serverinfo matchtag \"%s\"\n", clean_string(tag));
+}
+
 // True if `token` matches an entry in the space/tab/comma-separated
 // k_allowed_tokens list. Shared by the player connect gate (CanConnect) and the
 // spectator auto-promote (SpectatorConnect), so both agree on what counts as an
