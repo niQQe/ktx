@@ -1262,6 +1262,7 @@ qbool private_game_by_default(void);
 
 // qwrumble matchmade-server helpers
 qbool is_matchmade_server(void);
+void mm_apply_match_tag(void);
 qbool mm_token_allowed(const char *token);
 qbool mm_forced_name(gedict_t *p, char *out, int out_size);
 qbool mm_forced_colors(gedict_t *p, int *top, int *bottom);
