@@ -254,6 +254,14 @@ void Killed(gedict_t *targ, gedict_t *attacker, gedict_t *inflictor)
 	oself = self;
 	self = targ;
 
+	if (self->antilag_data != NULL)
+	{
+		if (time_corrected >= self->teleport_time)
+		{
+			antilag_unmove_specific(self);
+		}
+	}
+
 	if (self->s.v.health < -99)
 	{
 		self->s.v.health = -99;	// don't let sbar look bad if a player
@@ -874,6 +882,7 @@ void T_Damage(gedict_t *targ, gedict_t *inflictor, gedict_t *attacker, float dam
 
 	// figure momentum add
 	if ((inflictor != world)
+			&& (targ->teleport_time < time_corrected || targ == attacker)
 			&& ((targ->s.v.movetype == MOVETYPE_WALK)
 					|| (k_bloodfest && ((int)targ->s.v.flags & FL_MONSTER))))
 	{
@@ -1254,6 +1263,24 @@ void T_RadiusDamage(gedict_t *inflictor, gedict_t *attacker, float damage, gedic
 	while (head)
 	{
 		if (head != ignore)
+		{
+			T_RadiusDamageApply(inflictor, attacker, head, damage, dtype);
+		}
+
+		head = trap_findradius(head, inflictor->s.v.origin, damage + 40);
+	}
+}
+
+void T_RadiusDamage_Ignore2(gedict_t *inflictor, gedict_t *attacker, float damage, gedict_t *ignore, gedict_t *ignore2,
+	deathType_t dtype)
+{
+
+	gedict_t *head;
+	head = trap_findradius(world, inflictor->s.v.origin, damage + 40);
+
+	while (head)
+	{
+		if (head != ignore && head != ignore2)
 		{
 			T_RadiusDamageApply(inflictor, attacker, head, damage, dtype);
 		}
