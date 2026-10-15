@@ -118,6 +118,7 @@ void ToggleInstagib(void);
 void ToggleLGC(void);
 void ToggleCGKickback(void);
 void ToggleToT(void);
+void ToggleDropMessage(void);
 void TogglePowerups(void);
 void TogglePuPickup(void);
 void ToggleQEnemy(void);
@@ -362,6 +363,7 @@ const char CD_NODESC[] = "no desc";
 #define CD_PUPICKUP			"change powerups pickup policy"
 #define CD_ANTILAG			"toggle antilag"
 #define CD_DISCHARGE		"underwater discharges"
+#define CD_DROPMSG			"toggle drop pack message"
 #define CD_DM				"show deathmatch mode"
 #define CD_DMM1				"set deathmatch mode 1"
 #define CD_DMM2				"set deathmatch mode 2"
@@ -728,6 +730,7 @@ cmd_t cmds[] =
 	{ "powerups_pickup", 			TogglePuPickup, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_PARAMS | CF_RULES, 									CD_PUPICKUP },
 	{ "antilag", 					antilag, 						0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_ANTILAG },
 	{ "discharge", 					ToggleDischarge, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DISCHARGE },
+	{ "dropmessage", 				ToggleDropMessage, 				0, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DROPMSG },
 	{ "dm", 						ShowDMM, 						0, 			CF_PLAYER | CF_SPC_ADMIN, 												CD_DM },
 	{ "dmm1", 						DEF(ChangeDM), 					1, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DMM1 },
 	{ "dmm2", 						DEF(ChangeDM), 					2, 			CF_PLAYER | CF_SPC_ADMIN | CF_RULES, 												CD_DMM2 },
@@ -2904,6 +2907,16 @@ void ToggleDischarge(void)
 	}
 
 	cvar_toggle_msg(self, "k_dis", redtext("discharges"));
+}
+
+void ToggleDropMessage(void)
+{
+	if (match_in_progress)
+	{
+		return;
+	}
+
+	cvar_toggle_msg(self, "k_drp", redtext("Dropped Pack Messages"));
 }
 
 void ShowDMM(void)

@@ -642,7 +642,7 @@ qbool CA_can_fire(gedict_t *p)
 		return true;
 	}
 
-	if (!ra_match_fight && p->ready)
+	if (!match_in_progress && !ra_match_fight && p->ready)
 	{
 		return true;	// allow fire during prewar if /ready
 	}
