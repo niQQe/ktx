@@ -3863,6 +3863,8 @@ void StartMatch(void)
 
 	first_rl_taken = false; // no one took rl yet
 
+	Orb_MatchStart();
+
 	SM_PrepareMap(); // remove/add some items from map regardind with dmm and game mode
 
 	if (SpawnShowStatus() != SPAWN_SHOW_MATCH)

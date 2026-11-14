@@ -608,6 +608,11 @@ void spawn_tfog(vec3_t org);
 
 void teleport_player(gedict_t *player, vec3_t origin, vec3_t angles, int flags);
 
+// orb.c
+void Orb_Precache(void);
+void Orb_Command(void);
+void Orb_MatchStart(void);
+
 #define TELEDEATH(e) ((e)->deathtype == dtTELE1 || (e)->deathtype == dtTELE2 || (e)->deathtype == dtTELE3)
 
 // runes.c
