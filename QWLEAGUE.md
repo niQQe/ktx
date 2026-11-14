@@ -14,6 +14,12 @@ KTX and layers the league logic on top.
 - **Recoverable-disconnect match flow** — ready-gate warmup, per-map forfeit,
   `reconnect` / `proceed` / `abort`, and a no-fault early-abort window (`k_mm_*`).
 - **Spectator auto-promote** + **QWLeague stats POST** (`/ServerApi/*`).
+- **Series epilogue** (`k_qwl_epilogue`, seconds; 0 off) — at a matchmade
+  series' end, the players on QWLeague's own client (userinfo `qwl`) play on a
+  few seconds at a cut top speed before the intermission, cued by serverinfo
+  `qwl_epilogue`; everyone else gets the usual intermission at once, the
+  players hidden from them and no one firing meanwhile. The result is final
+  first (stats posted, the demo stopped at the end); its frags don't count.
 - Assorted `motd` / `vote` / `world` tweaks for matchmade servers.
 
 Most behaviour is gated behind `k_qwleague_*` / `k_mm_*` cvars (off by default),
