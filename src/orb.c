@@ -24,11 +24,13 @@
  * by the pair and draws it as a white sphere crackling with electricity.
  *
  * Its files: the sprite and its stock sounds are in id1's pak0, which every
- * client has, so they are precached with every map and k_orb can be turned on
- * mid-map (rcon) and work at once. The QWLeague client's own sounds are
- * precached only when k_orb is on as a map loads, so a server without orb
- * mode asks no client for a file it lacks; turned on mid-map, the orb sounds
- * stock (ORB_SND_*_STOCK) until the next map.
+ * client has; they are precached when k_orb is on as a map loads, or on any
+ * QWLeague match server (k_match_id set), so there k_orb can be turned on
+ * mid-map over rcon and work at once. The QWLeague client's own sounds are
+ * precached only when k_orb is on as the map loads; turned on mid-map, the orb
+ * sounds stock (ORB_SND_*_STOCK) until the next map. Any other server
+ * precaches nothing for the orb, and turned on mid-map there it starts with
+ * the next map.
  */
 
 #include "g_local.h"
@@ -73,19 +75,31 @@ static float orb_life(void)
 	return (l > 0) ? l : ORB_DEFAULT_LIFE;
 }
 
-static qbool orb_own_sounds;	// k_orb was on as this map loaded: the QWLeague client's sounds are precached
+static qbool orb_files;			// the sprite and stock sounds are precached on this map
+static qbool orb_own_sounds;	// ...and the QWLeague client's own sounds
 
-// At a map's load: the sprite and stock sounds always (every client has them), the QWLeague client's sounds with
-// k_orb on.
+// The map's teleporters, gathered at the first orb that needs them (they are spawned with the map).
+#define ORB_TELEPORTERS_MAX		64
+static gedict_t *orb_teleporters[ORB_TELEPORTERS_MAX];
+static int orb_teleporter_count;	// -1: not gathered on this map yet; ORB_TELEPORTERS_MAX + 1: too many, scan
+
+// At a map's load: the orb's files when it may be played here (k_orb on, or a QWLeague match server, where rcon
+// may turn it on); the QWLeague client's own sounds only with k_orb on. ORB_SND_STICK is precached by every map
+// (weapons.c).
 void Orb_Precache(void)
 {
+	orb_teleporter_count = -1;
+	orb_own_sounds = (cvar("k_orb") != 0);
+	orb_files = orb_own_sounds || !strnull(cvar_string("k_match_id"));
+	if (!orb_files)
+	{
+		return;
+	}
+
 	trap_precache_model(ORB_MODEL);
 	trap_precache_sound(ORB_SND_LAUNCH_STOCK);
 	trap_precache_sound(ORB_SND_HUM_STOCK);
-	trap_precache_sound(ORB_SND_STICK);
 	trap_precache_sound(ORB_SND_STOP);
-
-	orb_own_sounds = (cvar("k_orb") != 0);
 	if (orb_own_sounds)
 	{
 		trap_precache_sound(ORB_SND_LAUNCH);
@@ -176,13 +190,58 @@ static qbool orb_segment_enters(vec3_t a, vec3_t b, vec3_t mins, vec3_t maxs, fl
 	return true;
 }
 
+static void orb_gather_teleporters(void)
+{
+	gedict_t *t;
+
+	orb_teleporter_count = 0;
+	for (t = world; (t = find(t, FOFS(classname), "trigger_teleport"));)
+	{
+		if (orb_teleporter_count == ORB_TELEPORTERS_MAX)
+		{
+			orb_teleporter_count = ORB_TELEPORTERS_MAX + 1;	// too many to keep: scan for them each time
+
+			return;
+		}
+
+		orb_teleporters[orb_teleporter_count++] = t;
+	}
+}
+
+// The next teleporter after t (world: the first), or NULL.
+static gedict_t* orb_next_teleporter(gedict_t *t, int *i)
+{
+	if (orb_teleporter_count > ORB_TELEPORTERS_MAX)
+	{
+		return find(t, FOFS(classname), "trigger_teleport");
+	}
+
+	// A teleporter removed since (its edict maybe reused) is skipped.
+	while (*i < orb_teleporter_count)
+	{
+		t = orb_teleporters[(*i)++];
+		if (streq(t->classname, "trigger_teleport"))
+		{
+			return t;
+		}
+	}
+
+	return NULL;
+}
+
 // The first teleporter the segment a -> b enters before frac, or NULL.
 static gedict_t* orb_teleporter_on(vec3_t a, vec3_t b, float *frac)
 {
 	gedict_t *t, *hit = NULL;
 	float f;
+	int i = 0;
 
-	for (t = world; (t = find(t, FOFS(classname), "trigger_teleport"));)
+	if (orb_teleporter_count < 0)
+	{
+		orb_gather_teleporters();
+	}
+
+	for (t = world; (t = orb_next_teleporter(t, &i));)
 	{
 		if (orb_segment_enters(a, b, t->s.v.absmin, t->s.v.absmax, &f) && (f < *frac))
 		{
@@ -337,8 +396,8 @@ static void orb_launch(gedict_t *p)
 	sound(orb, CHAN_VOICE, orb_own_sounds ? ORB_SND_HUM : ORB_SND_HUM_STOCK, 0.5, ATTN_IDLE);
 }
 
-// Does a player standing at `at` fit inside the map, and can the orb at `from` see there (not through a wall)?
-static qbool orb_spot_ok(gedict_t *p, vec3_t from, vec3_t at)
+// Does a player standing at `at` fit, inside the map? (Other players don't count: landing on one telefrags them.)
+static qbool orb_fits(gedict_t *p, vec3_t at)
 {
 	int contents = trap_pointcontents(PASSVEC3(at));
 
@@ -348,14 +407,22 @@ static qbool orb_spot_ok(gedict_t *p, vec3_t from, vec3_t at)
 	}
 
 	TraceCapsule(PASSVEC3(at), PASSVEC3(at), true, p, ORB_HULL_MINS, ORB_HULL_MAXS);
-	if (g_globalvars.trace_startsolid || g_globalvars.trace_allsolid)
-	{
-		return false;
-	}
 
-	traceline(PASSVEC3(from), PASSVEC3(at), true, p);
+	return !g_globalvars.trace_startsolid && !g_globalvars.trace_allsolid;
+}
+
+// Can `from` see `to` (no wall between)?
+static qbool orb_sees(gedict_t *p, vec3_t from, vec3_t to)
+{
+	traceline(PASSVEC3(from), PASSVEC3(to), true, p);
 
 	return (g_globalvars.trace_fraction == 1);
+}
+
+// Does a player standing at `at` fit, and can the orb at `from` see there?
+static qbool orb_spot_ok(gedict_t *p, vec3_t from, vec3_t at)
+{
+	return orb_fits(p, at) && orb_sees(p, from, at);
 }
 
 static int orb_offset_cmp(const void *a, const void *b)
@@ -429,15 +496,17 @@ static qbool orb_spot_near(gedict_t *p, gedict_t *orb, vec3_t base, vec3_t out)
  * Near the orb first: stuck, just off its surface with the hull clear of it;
  * in flight, the player's eyes where the orb is; then the grid round that.
  * Failing that (a crevice, a ledge too thin), back along the orb's flight
- * towards where it was thrown, the first place a player fits. Its thrower
- * stood at the far end, so the walk ends at worst back there.
+ * towards where it was thrown, the first place a player fits whose eyes the
+ * orb sees (an orb that rode a door away no longer has its flight behind it).
+ * Then where it was thrown, if a player still fits there (a lift may have
+ * moved into it), else nowhere new: the player stays where they are.
  */
 #define ORB_PATH_STEP	16
 static const float orb_path_lift[] = { 0, 16, -16, 32 };
 
 static void orb_find_spot(gedict_t *p, gedict_t *orb, vec3_t out)
 {
-	vec3_t base, back, at;
+	vec3_t base, back, at, eye;
 	float length, d;
 	int i;
 
@@ -467,13 +536,18 @@ static void orb_find_spot(gedict_t *p, gedict_t *orb, vec3_t out)
 
 	for (d = ORB_PATH_STEP; d < length; d += ORB_PATH_STEP)
 	{
+		VectorMA(base, d, back, eye);
+		eye[2] += ORB_EYE_HEIGHT;
+		if (!orb_sees(p, orb->s.v.origin, eye))
+		{
+			continue;
+		}
+
 		for (i = 0; i < (int)(sizeof(orb_path_lift) / sizeof(orb_path_lift[0])); i++)
 		{
 			VectorMA(base, d, back, at);
 			at[2] += orb_path_lift[i];
-			TraceCapsule(PASSVEC3(at), PASSVEC3(at), true, p, ORB_HULL_MINS, ORB_HULL_MAXS);
-			if (!g_globalvars.trace_startsolid && !g_globalvars.trace_allsolid
-					&& (trap_pointcontents(PASSVEC3(at)) != CONTENT_SOLID))
+			if (orb_fits(p, at))
 			{
 				VectorCopy(at, out);
 
@@ -482,13 +556,21 @@ static void orb_find_spot(gedict_t *p, gedict_t *orb, vec3_t out)
 		}
 	}
 
-	VectorCopy(orb->orb_thrown_from, out);
+	if (orb_fits(p, orb->orb_thrown_from))
+	{
+		VectorCopy(orb->orb_thrown_from, out);
+	}
+	else
+	{
+		VectorCopy(p->s.v.origin, out);
+	}
 }
 
-// Stuck in a teleporter: the teleporter takes the player. False if it didn't.
+// Stuck in a teleporter: the teleporter takes the player. False if it didn't (and nothing of theirs changed).
 static qbool orb_through_teleporter(gedict_t *p, gedict_t *tele)
 {
 	gedict_t *saved_self = self, *saved_other = other;
+	float saved_time = p->teleport_time;
 
 	p->teleport_time = 0;
 	self = tele;
@@ -497,7 +579,14 @@ static qbool orb_through_teleporter(gedict_t *p, gedict_t *tele)
 	self = saved_self;
 	other = saved_other;
 
-	return (p->teleport_time == g_globalvars.time);
+	if (p->teleport_time == g_globalvars.time)
+	{
+		return true;
+	}
+
+	p->teleport_time = saved_time;
+
+	return false;
 }
 
 static void orb_teleport(gedict_t *p, gedict_t *orb)
@@ -527,6 +616,13 @@ void Orb_Command(void)
 
 	if (!cvar("k_orb") || intermission_running || ISDEAD(p) || (p->ct != ctPlayer))
 	{
+		return;
+	}
+
+	if (!orb_files)
+	{
+		G_sprint(p, PRINT_HIGH, "Orb mode starts with the next map\n");
+
 		return;
 	}
 

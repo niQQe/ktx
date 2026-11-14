@@ -32,12 +32,14 @@ KTX and layers the league logic on top.
   A stuck orb that runs out bursts: 100 damage at its heart, falling off as a
   rocket's (half to its thrower), sent as `TE_TAREXPLOSION`; kills read
   "zapped by X's orb" (`dtORB`, appended after `dtUNKNOWN` in `deathtype.h`).
-  Its sprite and stock sounds are in id1's `pak0` (every client has them) and
-  are precached with every map, so `k_orb` can be turned on mid-map (rcon)
+  Its sprite and stock sounds (all in id1's `pak0`, which every client has)
+  are precached when `k_orb` is on as the map loads, or on any QWLeague match
+  server (`k_match_id` set), where `k_orb` can be turned on mid-map over rcon
   and works at once. The QWLeague client's own sounds (`qwl/orb_*.wav`) are
-  precached only when `k_orb` is on as the map loads, so a server without orb
-  mode asks no client for a file it lacks; turned on mid-map, the orb sounds
-  stock (axe swing, `ambience/hum1.wav`) until the next map.
+  precached only when `k_orb` is on as the map loads; turned on mid-map, the
+  orb sounds stock (axe swing, `ambience/hum1.wav`) until the next map. Any
+  other server precaches nothing for the orb (turned on mid-map there, it
+  starts with the next map). Landing on a player telefrags them.
 - Assorted `motd` / `vote` / `world` tweaks for matchmade servers.
 
 Most behaviour is gated behind `k_qwleague_*` / `k_mm_*` cvars (off by default),
