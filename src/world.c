@@ -273,7 +273,7 @@ void SP_worldspawn(void)
 	trap_precache_sound("player/axhit1.wav");	// ax hit meat
 	trap_precache_sound("player/axhit2.wav");	// ax hit world
 
-	Orb_Precache();	// orb mode's files, if k_orb is on
+	Orb_Precache();	// orb mode's files: its stock ones always, the QWLeague client's with k_orb on
 
 	trap_precache_sound("player/h2ojump.wav");	// player jumping into water
 	trap_precache_sound("player/slimbrn2.wav");	// player enter slime

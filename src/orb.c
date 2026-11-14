@@ -23,10 +23,12 @@
  * ezQuake draws that as a white light, and QWLeague's client recognises it
  * by the pair and draws it as a white sphere crackling with electricity.
  *
- * Its files (the sprite and the QWLeague client's sounds) are precached only
- * when k_orb is on as a map loads, so a server without orb mode sends no
- * client a file it lacks. Turned on mid-map, orb mode starts with the next
- * map.
+ * Its files: the sprite and its stock sounds are in id1's pak0, which every
+ * client has, so they are precached with every map and k_orb can be turned on
+ * mid-map (rcon) and work at once. The QWLeague client's own sounds are
+ * precached only when k_orb is on as a map loads, so a server without orb
+ * mode asks no client for a file it lacks; turned on mid-map, the orb sounds
+ * stock (ORB_SND_*_STOCK) until the next map.
  */
 
 #include "g_local.h"
@@ -37,10 +39,13 @@ void teleport_touch(void);
 #define ORB_CLASSNAME		"orb"
 #define ORB_EFFECTS			(EF_RED | EF_GREEN | EF_BLUE)
 
-#define ORB_SND_LAUNCH		"qwl/orb_launch.wav"	// the QWLeague client's (tools/qwl_sounds.py); a nod to the Vore's
-#define ORB_SND_STICK		"weapons/tink1.wav"
-#define ORB_SND_HUM			"qwl/orb_hum.wav"	// the QWLeague client's (tools/qwl_sounds.py), looped: plays until replaced
-#define ORB_SND_STOP		"misc/null.wav"
+// The QWLeague client's own (tools/qwl_sounds.py), and the stock ones in pak0 they stand in for.
+#define ORB_SND_LAUNCH			"qwl/orb_launch.wav"	// a nod to the Vore's
+#define ORB_SND_LAUNCH_STOCK	"weapons/ax1.wav"
+#define ORB_SND_HUM				"qwl/orb_hum.wav"		// looped: plays until replaced
+#define ORB_SND_HUM_STOCK		"ambience/hum1.wav"		// looped too
+#define ORB_SND_STICK			"weapons/tink1.wav"
+#define ORB_SND_STOP			"misc/null.wav"
 
 #define ORB_SPEED			900		// units / second
 #define ORB_MAX_FLIGHT		15		// seconds; only a hole in the map flies this long
@@ -68,22 +73,24 @@ static float orb_life(void)
 	return (l > 0) ? l : ORB_DEFAULT_LIFE;
 }
 
-static qbool orb_files;	// k_orb was on as this map loaded: the orb's files are precached
+static qbool orb_own_sounds;	// k_orb was on as this map loaded: the QWLeague client's sounds are precached
 
-// At a map's load: the orb's files, if orb mode is on.
+// At a map's load: the sprite and stock sounds always (every client has them), the QWLeague client's sounds with
+// k_orb on.
 void Orb_Precache(void)
 {
-	orb_files = (cvar("k_orb") != 0);
-	if (!orb_files)
-	{
-		return;
-	}
-
 	trap_precache_model(ORB_MODEL);
-	trap_precache_sound(ORB_SND_LAUNCH);
+	trap_precache_sound(ORB_SND_LAUNCH_STOCK);
+	trap_precache_sound(ORB_SND_HUM_STOCK);
 	trap_precache_sound(ORB_SND_STICK);
-	trap_precache_sound(ORB_SND_HUM);
 	trap_precache_sound(ORB_SND_STOP);
+
+	orb_own_sounds = (cvar("k_orb") != 0);
+	if (orb_own_sounds)
+	{
+		trap_precache_sound(ORB_SND_LAUNCH);
+		trap_precache_sound(ORB_SND_HUM);
+	}
 }
 
 static void orb_remove(gedict_t *orb)
@@ -326,8 +333,8 @@ static void orb_launch(gedict_t *p)
 	p->orb = orb;
 	p->orb_ready_time = g_globalvars.time + orb_cooldown();
 
-	sound(p, CHAN_AUTO, ORB_SND_LAUNCH, 1, ATTN_NORM);
-	sound(orb, CHAN_VOICE, ORB_SND_HUM, 0.5, ATTN_IDLE);
+	sound(p, CHAN_AUTO, orb_own_sounds ? ORB_SND_LAUNCH : ORB_SND_LAUNCH_STOCK, 1, ATTN_NORM);
+	sound(orb, CHAN_VOICE, orb_own_sounds ? ORB_SND_HUM : ORB_SND_HUM_STOCK, 0.5, ATTN_IDLE);
 }
 
 // Does a player standing at `at` fit inside the map, and can the orb at `from` see there (not through a wall)?
@@ -520,13 +527,6 @@ void Orb_Command(void)
 
 	if (!cvar("k_orb") || intermission_running || ISDEAD(p) || (p->ct != ctPlayer))
 	{
-		return;
-	}
-
-	if (!orb_files)
-	{
-		G_sprint(p, PRINT_HIGH, "Orb mode starts with the next map\n");
-
 		return;
 	}
 
