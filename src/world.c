@@ -1116,6 +1116,11 @@ void FirstFrame(void)
 	// k_shutdown_on_end: when 1, the server `quit`s itself after MatchEndStats.
 	// Used by the qwleague-agent so per-match mvdsv processes terminate cleanly.
 	RegisterCvarEx("k_shutdown_on_end", "0");
+	// k_qwl_epilogue: seconds of play, slowed, after a matchmade series ends,
+	// before the intermission — for the players on QWLeague's own client
+	// (userinfo `qwl`) only; everyone else gets the usual end, the
+	// intermission at once. 0 turns it off (mm_epilogue_begin in match.c).
+	RegisterCvarEx("k_qwl_epilogue", "7");
 	// qwleague Bo3/BoN series: one matchmade server plays an ordered list of
 	// maps, tracking the series score, and only self-terminates once a team
 	// clinches (k_series_bestof/2 + 1 wins) or the maps run out. bestof 1
