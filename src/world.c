@@ -273,6 +273,8 @@ void SP_worldspawn(void)
 	trap_precache_sound("player/axhit1.wav");	// ax hit meat
 	trap_precache_sound("player/axhit2.wav");	// ax hit world
 
+	Orb_Precache();	// orb mode's files: its stock ones always, the QWLeague client's with k_orb on
+
 	trap_precache_sound("player/h2ojump.wav");	// player jumping into water
 	trap_precache_sound("player/slimbrn2.wav");	// player enter slime
 	trap_precache_sound("player/inh2o.wav");	// player enter water
@@ -979,6 +981,9 @@ void FirstFrame(void)
 //}
 	RegisterCvar("k_spec_info");
 	RegisterCvar("k_midair");
+	RegisterCvar("k_orb");
+	RegisterCvar("k_orb_cooldown");
+	RegisterCvar("k_orb_life");
 	RegisterCvarEx("k_midair_minheight", "1");
 
 	RegisterCvarEx("k_killquad", "0");

@@ -5622,6 +5622,10 @@ void ClientObituary(gedict_t *targ, gedict_t *attacker)
 			{
 				deathstring = va(" electrocutes %s\n", g_himself(targ));
 			}
+			else if (dtORB == targ->deathtype)
+			{
+				deathstring = " sat on their own orb\n";
+			}
 			else if (dtSQUISH == targ->deathtype)
 			{ //similar code present in case where !(attacker->ct == ctPlayer)
 				deathstring = " was squished\n";
@@ -5984,6 +5988,11 @@ void ClientObituary(gedict_t *targ, gedict_t *attacker)
 						deathstring = " accepts ";
 						deathstring2 = "'s discharge\n";
 				}
+			}
+			else if (dtORB == targ->deathtype)
+			{
+				deathstring = " was zapped by ";
+				deathstring2 = "'s orb\n";
 			}
 			else
 			{
